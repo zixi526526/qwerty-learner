@@ -16,7 +16,7 @@ type ProfileManagerProps = {
 }
 
 export default function ProfileManager({ onClose, showCloseButton = false }: ProfileManagerProps) {
-  const { activeProfile, createProfile, deleteProfile, error, exportProfile, isLoading, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, updateProfile } =
+  const { activeProfile, createProfile, deleteProfile, error, isLoading, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, updateProfile } =
     useFamily()
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -47,7 +47,6 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
     try {
       if (editingProfileId) {
         await updateProfile(editingProfileId, {
-          username,
           displayName,
           welcomeMessage,
         })
@@ -84,7 +83,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
 
     setPending(true)
     try {
-      await deleteProfile(profile.id, confirmation)
+      await deleteProfile(profile.id)
     } finally {
       setPending(false)
     }
@@ -216,14 +215,6 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                             Switch
                           </button>
                         )}
-                        <button
-                          className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
-                          type="button"
-                          disabled={pending}
-                          onClick={() => void exportProfile(profile)}
-                        >
-                          Export
-                        </button>
                         <button
                           className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
                           type="button"

@@ -12,19 +12,6 @@ export type FamilyProfile = {
 
 export type FamilyRuntimeMode = 'server' | 'local'
 
-export type FamilySyncDocument = {
-  revision: number
-  payload: Record<string, unknown>
-  schemaVersion: number
-  updatedAt: string | null
-}
-
-export type FamilyBootstrap = {
-  profile: FamilyProfile
-  settings: FamilySyncDocument
-  progress: FamilySyncDocument
-}
-
 export type FamilySnapshot = {
   activeProfile: FamilyProfile | null
   profiles: FamilyProfile[]
@@ -39,7 +26,6 @@ export type CreateFamilyProfileInput = {
 }
 
 export type UpdateFamilyProfileInput = {
-  username?: string
   displayName?: string
   welcomeMessage?: string
 }
@@ -111,10 +97,6 @@ function createWelcomeMessage(displayName: string) {
   return `Welcome back, ${displayName}!`
 }
 
-function getLatestTimestamp(...values: Array<string | null | undefined>) {
-  return values.filter((value): value is string => Boolean(value)).sort().pop() || null
-}
-
 function createProfileId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -165,44 +147,6 @@ function normalizeProfile(rawProfile: Partial<FamilyProfile> & Record<string, un
   }
 }
 
-function isFamilyProfile(profile: FamilyProfile | null): profile is FamilyProfile {
-  return profile !== null
-}
-
-function normalizeSyncDocument(rawDocument: Record<string, unknown> | null | undefined): FamilySyncDocument {
-  return {
-    revision: typeof rawDocument?.revision === 'number' ? rawDocument.revision : 0,
-    payload: typeof rawDocument?.payload === 'object' && rawDocument.payload ? (rawDocument.payload as Record<string, unknown>) : {},
-    schemaVersion: typeof rawDocument?.schemaVersion === 'number' ? rawDocument.schemaVersion : 1,
-    updatedAt:
-      typeof rawDocument?.updatedAt === 'string'
-        ? rawDocument.updatedAt
-        : typeof rawDocument?.updated_at === 'string'
-          ? rawDocument.updated_at
-          : null,
-  }
-}
-
-function normalizeBootstrap(rawBootstrap: Record<string, unknown> | null | undefined): FamilyBootstrap | null {
-  if (!rawBootstrap) {
-    return null
-  }
-
-  const profile = normalizeProfile(
-    ((typeof rawBootstrap.profile === 'object' && rawBootstrap.profile) || rawBootstrap) as Record<string, unknown>,
-  )
-
-  if (!profile) {
-    return null
-  }
-
-  return {
-    profile,
-    settings: normalizeSyncDocument(rawBootstrap.settings as Record<string, unknown> | undefined),
-    progress: normalizeSyncDocument(rawBootstrap.progress as Record<string, unknown> | undefined),
-  }
-}
-
 async function fetchJson(path: string, init?: RequestInit) {
   const response = await fetch(path, {
     headers: {
@@ -233,9 +177,9 @@ async function tryLoadServerSnapshot(): Promise<FamilySnapshot | null> {
   try {
     const profilesPayload = await fetchJson('/api/profiles', { method: 'GET' })
     const profiles = Array.isArray(profilesPayload.profiles)
-      ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
+      ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(Boolean)
       : Array.isArray(profilesPayload.data)
-        ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
+        ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(Boolean)
         : []
 
     const meResponse = await fetch('/api/me', {
@@ -257,17 +201,17 @@ async function tryLoadServerSnapshot(): Promise<FamilySnapshot | null> {
         mePayload
       activeProfile = normalizeProfile(meCandidate as Record<string, unknown>)
 
-      if (activeProfile) {
-        try {
-          const bootstrapPayload = await fetchJson('/api/sync/bootstrap', { method: 'GET' })
-          const bootstrap = normalizeBootstrap(bootstrapPayload)
-          lastSyncedAt = bootstrap
-            ? getLatestTimestamp(bootstrap.profile.lastSeenAt, bootstrap.settings.updatedAt, bootstrap.progress.updatedAt)
-            : getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt)
-        } catch (error) {
-          console.warn('Bootstrap endpoint unavailable, continuing with profile shell only', error)
-          lastSyncedAt = getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt) || getTimestamp()
-        }
+      try {
+        const bootstrapPayload = await fetchJson('/api/sync/bootstrap', { method: 'GET' })
+        lastSyncedAt =
+          typeof bootstrapPayload.lastSyncedAt === 'string'
+            ? bootstrapPayload.lastSyncedAt
+            : typeof bootstrapPayload.updatedAt === 'string'
+              ? bootstrapPayload.updatedAt
+              : getTimestamp()
+      } catch (error) {
+        console.warn('Bootstrap endpoint unavailable, continuing with profile shell only', error)
+        lastSyncedAt = getTimestamp()
       }
     }
 
@@ -356,21 +300,12 @@ export async function selectFamilyProfile(runtimeMode: FamilyRuntimeMode, profil
       }),
     })
 
-    const bootstrapPayload = await fetchJson('/api/sync/bootstrap', {
-      method: 'GET',
-    })
-    const bootstrap = normalizeBootstrap(bootstrapPayload)
-    const activeProfile =
-      bootstrap?.profile ||
-      normalizeProfile(
-        ((typeof selectedPayload.profile === 'object' && selectedPayload.profile) || selectedPayload) as Record<string, unknown>,
-      ) || { ...profile, lastSeenAt: timestamp, updatedAt: timestamp }
-
     return {
-      activeProfile,
-      lastSyncedAt: bootstrap
-        ? getLatestTimestamp(activeProfile.lastSeenAt, bootstrap.settings.updatedAt, bootstrap.progress.updatedAt)
-        : getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt) || timestamp,
+      activeProfile:
+        normalizeProfile(
+          ((typeof selectedPayload.profile === 'object' && selectedPayload.profile) || selectedPayload) as Record<string, unknown>,
+        ) || { ...profile, lastSeenAt: timestamp, updatedAt: timestamp },
+      lastSyncedAt: timestamp,
     }
   }
 
@@ -398,11 +333,7 @@ export async function updateFamilyProfile(runtimeMode: FamilyRuntimeMode, profil
   if (runtimeMode === 'server') {
     const updatedPayload = await fetchJson(`/api/profiles/${profileId}`, {
       method: 'PATCH',
-      body: JSON.stringify({
-        username: input.username,
-        displayName: input.displayName,
-        welcomeMessage: input.welcomeMessage,
-      }),
+      body: JSON.stringify(input),
     })
 
     return normalizeProfile(
@@ -431,50 +362,10 @@ export async function updateFamilyProfile(runtimeMode: FamilyRuntimeMode, profil
   return updatedProfile
 }
 
-export async function exportFamilyProfile(runtimeMode: FamilyRuntimeMode, profile: FamilyProfile) {
-  if (runtimeMode === 'server') {
-    const response = await fetch(`/api/profiles/${profile.id}/export`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null
-      throw new Error(typeof payload?.error === 'string' ? payload.error : 'Unable to export profile backup')
-    }
-
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${profile.username}-backup.json`
-    anchor.click()
-    window.URL.revokeObjectURL(url)
-    return
-  }
-
-  const profiles = readLocalProfiles()
-  const targetProfile = profiles.find((candidate) => candidate.id === profile.id)
-  if (!targetProfile) {
-    throw new Error('Profile not found')
-  }
-
-  const blob = new Blob([JSON.stringify({ profile: targetProfile, exportedAt: getTimestamp() }, null, 2)], { type: 'application/json' })
-  const url = window.URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `${targetProfile.username}-backup.local.json`
-  anchor.click()
-  window.URL.revokeObjectURL(url)
-}
-
-export async function deleteFamilyProfile(runtimeMode: FamilyRuntimeMode, profileId: string, confirmationText?: string) {
+export async function deleteFamilyProfile(runtimeMode: FamilyRuntimeMode, profileId: string) {
   if (runtimeMode === 'server') {
     await fetchJson(`/api/profiles/${profileId}`, {
       method: 'DELETE',
-      body: JSON.stringify({
-        confirmationText,
-      }),
     })
     return
   }
