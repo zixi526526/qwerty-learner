@@ -34,6 +34,7 @@ function buildApp(options = {}) {
   const db = options.db || openDatabase(options.env)
   const env = options.env || process.env
   const buildDir = path.join(process.cwd(), 'build')
+  const publicDir = path.join(process.cwd(), 'public')
   const app = Fastify({ logger: options.logger ?? false })
 
   app.register(fastifyCookie, {
@@ -246,6 +247,15 @@ function buildApp(options = {}) {
       wildcard: false,
       decorateReply: false,
     })
+
+    if (fs.existsSync(publicDir)) {
+      app.register(fastifyStatic, {
+        root: publicDir,
+        prefix: '/',
+        wildcard: false,
+        decorateReply: false,
+      })
+    }
 
     app.get('/*', async (request, reply) => {
       if (request.url.startsWith('/api/')) {
