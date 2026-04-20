@@ -1,5 +1,6 @@
 import { db } from '.'
 import { ReviewRecord } from './record'
+import { syncReviewRecord } from '@/family/practiceSync'
 import type { TErrorWordData } from '@/pages/Gallery-N/hooks/useErrorWords'
 import type { Word } from '@/typings'
 import { useEffect, useState } from 'react'
@@ -59,10 +60,13 @@ export async function generateNewWordReviewRecord(dictID: string, errorData: TEr
 
   const record = new ReviewRecord(dictID, sortedWords)
 
+  await syncReviewRecord(record)
   await db.reviewRecords.put(record)
   return record
 }
 
 export async function putWordReviewRecord(record: ReviewRecord) {
-  db.reviewRecords.put(record)
+  record.updatedAt = new Date().toISOString()
+  await syncReviewRecord(record)
+  await db.reviewRecords.put(record)
 }

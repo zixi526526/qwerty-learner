@@ -1,7 +1,8 @@
 import type { WritableAtom } from 'jotai'
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
 import type { RESET } from 'jotai/vanilla/utils/constants'
+import { createProfileScopedStorage } from '@/family/storage'
+import { atomWithProfileStorage } from './profileStorage'
 
 type SetStateActionWithReset<Value> = Value | typeof RESET | ((prev: Value) => Value | typeof RESET)
 
@@ -9,7 +10,8 @@ export default function atomForConfig<T extends Record<string, unknown>>(
   key: string,
   defaultValue: T,
 ): WritableAtom<T, [SetStateActionWithReset<T>], void> {
-  const storageAtom = atomWithStorage(key, defaultValue)
+  const storage = createProfileScopedStorage<T>()
+  const storageAtom = atomWithProfileStorage(key, defaultValue)
   return atom((get) => {
     // Get the underlying object
     const config = get(storageAtom)
@@ -35,8 +37,7 @@ export default function atomForConfig<T extends Record<string, unknown>>(
     }
 
     if (newConfig !== config) {
-      const jsonString = JSON.stringify(newConfig)
-      localStorage.setItem(key, jsonString)
+      storage.setItem(key, newConfig)
     }
 
     return newConfig

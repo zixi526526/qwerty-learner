@@ -124,6 +124,29 @@ test('sync APIs persist data, surface conflicts, and support explicit migration 
   assert.equal(conflict.statusCode, 409)
   assert.equal(conflict.json().current.revision, 1)
 
+  const practice = await app.inject({
+    method: 'PUT',
+    url: '/api/sync/practice',
+    headers: { cookie },
+    payload: {
+      wordRecords: [
+        {
+          recordId: 'word-gamma-1',
+          updatedAt: '2026-04-20T00:00:00.000Z',
+          word: 'gamma',
+          timeStamp: 1,
+          dict: 'cet4',
+          chapter: 0,
+          timing: [100, 110],
+          wrongCount: 0,
+          mistakes: {},
+        },
+      ],
+    },
+  })
+  assert.equal(practice.statusCode, 200)
+  assert.equal(practice.json().practice.wordRecords[0].recordId, 'word-gamma-1')
+
   const imported = await app.inject({
     method: 'POST',
     url: '/api/migrations/import-local',
@@ -131,11 +154,25 @@ test('sync APIs persist data, surface conflicts, and support explicit migration 
     payload: {
       settingsPayload: { currentDict: 'ielts' },
       progressPayload: { chapterRecords: [{ dict: 'ielts', chapter: 2 }] },
+      practicePayload: {
+        reviewRecords: [
+          {
+            recordId: 'review-imported',
+            updatedAt: '2026-04-20T00:00:01.000Z',
+            dict: 'ielts',
+            index: 1,
+            createTime: 2,
+            isFinished: false,
+            words: [{ name: 'hello' }],
+          },
+        ],
+      },
     },
   })
   assert.equal(imported.statusCode, 200)
   assert.equal(imported.json().settings.payload.currentDict, 'ielts')
   assert.equal(imported.json().progress.payload.chapterRecords[0].chapter, 2)
+  assert.equal(imported.json().practice.reviewRecords[0].recordId, 'review-imported')
 })
 
 
@@ -149,6 +186,13 @@ test('unauthorized sync endpoints reject requests without a selected family prof
   const bootstrap = await app.inject({ method: 'GET', url: '/api/sync/bootstrap' })
   assert.equal(bootstrap.statusCode, 401)
   assert.match(bootstrap.json().error, /Select a family profile first/)
+
+  const practice = await app.inject({
+    method: 'PUT',
+    url: '/api/sync/practice',
+    payload: { wordRecords: [] },
+  })
+  assert.equal(practice.statusCode, 401)
 
   const importLocal = await app.inject({
     method: 'POST',

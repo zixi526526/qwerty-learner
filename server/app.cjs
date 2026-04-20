@@ -21,6 +21,7 @@ const {
   touchSession,
   updateProfile,
 } = require('./lib/store.cjs')
+const { listPracticeRecords, upsertPracticeRecords } = require('./lib/practice-store.cjs')
 const {
   sanitizeDisplayName,
   sanitizeWelcomeMessage,
@@ -109,7 +110,10 @@ function buildApp(options = {}) {
       return reply.status(404).send({ error: 'Profile not found.' })
     }
     reply.header('content-disposition', `attachment; filename="${bundle.profile.username}-backup.json"`)
-    return bundle
+    return {
+      ...bundle,
+      practice: listPracticeRecords(db, bundle.profile.id),
+    }
   })
 
   app.delete('/api/profiles/:id', async (request, reply) => {
@@ -183,6 +187,7 @@ function buildApp(options = {}) {
       profile,
       settings: getDocument(db, SETTINGS_TABLE, profile.id),
       progress: getDocument(db, PROGRESS_TABLE, profile.id),
+      practice: listPracticeRecords(db, profile.id),
     }
   })
 
@@ -216,19 +221,28 @@ function buildApp(options = {}) {
     }
   })
 
+  app.put('/api/sync/practice', async (request, reply) => {
+    const profile = requireSession(request, reply)
+    if (!profile) return
+
+    const practice = upsertPracticeRecords(db, profile.id, request.body ?? {})
+    return { practice }
+  })
+
   app.post('/api/migrations/import-local', async (request, reply) => {
     const profile = requireSession(request, reply)
     if (!profile) return
 
     const settings = saveDocument(db, SETTINGS_TABLE, profile.id, 0, request.body?.settingsPayload ?? {}, { force: true })
     const progress = saveDocument(db, PROGRESS_TABLE, profile.id, 0, request.body?.progressPayload ?? {}, { force: true })
-    return { profile, settings, progress }
+    const practice = upsertPracticeRecords(db, profile.id, request.body?.practicePayload ?? {})
+    return { profile, settings, progress, practice }
   })
 
   if (env.FAMILY_DISABLE_STATIC !== '1' && fs.existsSync(buildDir)) {
     app.register(fastifyStatic, {
-      root: buildDir,
-      prefix: '/',
+      root: path.join(buildDir, 'assets'),
+      prefix: '/assets/',
       wildcard: false,
       decorateReply: false,
     })

@@ -1,5 +1,6 @@
 import { DISMISS_START_CARD_DATE_KEY } from '@/constants'
 import { dismissStartCardDateAtom } from '@/store'
+import { getProfileScopedStorageItem } from '@/store/profileStorage'
 import { IS_MAC_OS, recordStarAction } from '@/utils'
 import { Transition } from '@headlessui/react'
 import { useSetAtom } from 'jotai'
@@ -16,7 +17,7 @@ export default function StarCard() {
 
   useLayoutEffect(() => {
     // 直接使用 jotai 的 dismissStartCardDate 其值先是默认值，然后才是 localStorage 中的值
-    const value = window.localStorage.getItem(DISMISS_START_CARD_DATE_KEY) as Date | null
+    const value = getProfileScopedStorageItem(DISMISS_START_CARD_DATE_KEY) as Date | null
     if (value === null) {
       setIsShow(true)
     }

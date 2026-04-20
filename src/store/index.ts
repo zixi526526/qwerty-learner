@@ -1,5 +1,6 @@
 import atomForConfig from './atomForConfig'
 import { reviewInfoAtom } from './reviewInfoAtom'
+import { atomWithProfileStorage } from './profileStorage'
 import { DISMISS_START_CARD_DATE_KEY, defaultFontSizeConfig } from '@/constants'
 import { idDictionaryMap } from '@/resources/dictionary'
 import { correctSoundResources, keySoundResources, wrongSoundResources } from '@/resources/soundResource'
@@ -14,9 +15,8 @@ import type {
 } from '@/typings'
 import type { ReviewRecord } from '@/utils/db/record'
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
 
-export const currentDictIdAtom = atomWithStorage('currentDict', 'cet4')
+export const currentDictIdAtom = atomWithProfileStorage('currentDict', 'cet4')
 export const currentDictInfoAtom = atom<Dictionary>((get) => {
   const id = get(currentDictIdAtom)
   let dict = idDictionaryMap[id]
@@ -27,7 +27,7 @@ export const currentDictInfoAtom = atom<Dictionary>((get) => {
   return dict
 })
 
-export const currentChapterAtom = atomWithStorage('currentChapter', 0)
+export const currentChapterAtom = atomWithProfileStorage('currentChapter', 0)
 
 export const loopWordConfigAtom = atomForConfig<{ times: LoopWordTimesOption }>('loopWordConfig', {
   times: 1,
@@ -70,13 +70,13 @@ export const randomConfigAtom = atomForConfig('randomConfig', {
   isOpen: false,
 })
 
-export const isShowPrevAndNextWordAtom = atomWithStorage('isShowPrevAndNextWord', true)
+export const isShowPrevAndNextWordAtom = atomWithProfileStorage('isShowPrevAndNextWord', true)
 
-export const isIgnoreCaseAtom = atomWithStorage('isIgnoreCase', true)
+export const isIgnoreCaseAtom = atomWithProfileStorage('isIgnoreCase', true)
 
-export const isShowAnswerOnHoverAtom = atomWithStorage('isShowAnswerOnHover', true)
+export const isShowAnswerOnHoverAtom = atomWithProfileStorage('isShowAnswerOnHover', true)
 
-export const isTextSelectableAtom = atomWithStorage('isTextSelectable', false)
+export const isTextSelectableAtom = atomWithProfileStorage('isTextSelectable', false)
 
 export const reviewModeInfoAtom = reviewInfoAtom({
   isReviewMode: false,
@@ -89,7 +89,7 @@ export const phoneticConfigAtom = atomForConfig('phoneticConfig', {
   type: 'us' as PhoneticType,
 })
 
-export const isOpenDarkModeAtom = atomWithStorage('isOpenDarkModeAtom', window.matchMedia('(prefers-color-scheme: dark)').matches)
+export const isOpenDarkModeAtom = atomWithProfileStorage('isOpenDarkModeAtom', window.matchMedia('(prefers-color-scheme: dark)').matches)
 
 export const isShowSkipAtom = atom(false)
 
@@ -108,10 +108,10 @@ export const wordDictationConfigAtom = atomForConfig('wordDictationConfig', {
   openBy: 'auto' as WordDictationOpenBy,
 })
 
-export const dismissStartCardDateAtom = atomWithStorage<Date | null>(DISMISS_START_CARD_DATE_KEY, null)
+export const dismissStartCardDateAtom = atomWithProfileStorage<Date | null>(DISMISS_START_CARD_DATE_KEY, null)
 
 // Enhanced version promotion popup state
-export const hasSeenEnhancedPromotionAtom = atomWithStorage('hasSeenEnhancedPromotion', false)
+export const hasSeenEnhancedPromotionAtom = atomWithProfileStorage('hasSeenEnhancedPromotion', false)
 
 // for dev test
 //   dismissStartCardDateAtom = atom<Date | null>(new Date())

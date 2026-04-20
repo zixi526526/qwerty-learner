@@ -56,6 +56,9 @@ export function createProfileScopedStorage<Value extends StorageValue>() {
       }
 
       window.localStorage.setItem(getProfileScopedStorageKey(key), JSON.stringify(newValue))
+      import('./settingsSync')
+        .then(({ queueSettingsSyncForKey }) => queueSettingsSyncForKey(key))
+        .catch((error) => console.error('Failed to queue settings sync', error))
     },
     removeItem: (key: string) => {
       if (!isBrowser()) {

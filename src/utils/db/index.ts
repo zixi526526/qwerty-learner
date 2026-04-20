@@ -1,5 +1,7 @@
 import type { IChapterRecord, IReviewRecord, IRevisionDictRecord, IWordRecord, LetterMistakes } from './record'
 import { ChapterRecord, ReviewRecord, WordRecord } from './record'
+import { syncPracticeBatch } from '@/family/practiceSync'
+import { getActiveProfileNamespace, getProfileScopedDbName } from '@/family/storage'
 import { TypingContext, TypingStateActionType } from '@/pages/Typing/store'
 import type { TypingState } from '@/pages/Typing/store/type'
 import { currentChapterAtom, currentDictIdAtom, isReviewModeAtom } from '@/store'
@@ -16,8 +18,8 @@ class RecordDB extends Dexie {
   revisionDictRecords!: Table<IRevisionDictRecord, number>
   revisionWordRecords!: Table<IWordRecord, number>
 
-  constructor() {
-    super('RecordDB')
+  constructor(name: string) {
+    super(name)
     this.version(1).stores({
       wordRecords: '++id,word,timeStamp,dict,chapter,errorCount,[dict+chapter]',
       chapterRecords: '++id,timeStamp,dict,chapter,time,[dict+chapter]',
@@ -31,14 +33,88 @@ class RecordDB extends Dexie {
       chapterRecords: '++id,timeStamp,dict,chapter,time,[dict+chapter]',
       reviewRecords: '++id,dict,createTime,isFinished',
     })
+    this.version(4).stores({
+      wordRecords: '++id,recordId,updatedAt,word,timeStamp,dict,chapter,wrongCount,[dict+chapter]',
+      chapterRecords: '++id,recordId,updatedAt,timeStamp,dict,chapter,time,[dict+chapter]',
+      reviewRecords: '++id,recordId,updatedAt,dict,createTime,isFinished',
+    })
   }
 }
 
-export const db = new RecordDB()
+const dbInstances = new Map<string, RecordDB>()
 
-db.wordRecords.mapToClass(WordRecord)
-db.chapterRecords.mapToClass(ChapterRecord)
-db.reviewRecords.mapToClass(ReviewRecord)
+function createDb(namespace = getActiveProfileNamespace()) {
+  const db = new RecordDB(getProfileScopedDbName(namespace))
+  db.wordRecords.mapToClass(WordRecord)
+  db.chapterRecords.mapToClass(ChapterRecord)
+  db.reviewRecords.mapToClass(ReviewRecord)
+  return db
+}
+
+function getDbInstance(namespace = getActiveProfileNamespace()) {
+  if (!dbInstances.has(namespace)) {
+    dbInstances.set(namespace, createDb(namespace))
+  }
+
+  const instance = dbInstances.get(namespace)
+  if (!instance) {
+    throw new Error(`Missing Dexie instance for namespace ${namespace}`)
+  }
+
+  return instance
+}
+
+let activeNamespace = getActiveProfileNamespace()
+let activeDb = getDbInstance(activeNamespace)
+
+export function setActiveDbNamespace(namespace?: string | null) {
+  activeNamespace = namespace || 'guest'
+  activeDb = getDbInstance(activeNamespace)
+  return activeDb
+}
+
+export function getActiveDb() {
+  return activeDb
+}
+
+export async function replacePracticeSnapshot(snapshot: {
+  wordRecords?: IWordRecord[]
+  chapterRecords?: IChapterRecord[]
+  reviewRecords?: IReviewRecord[]
+}) {
+  const dbInstance = getActiveDb()
+  await dbInstance.transaction('rw', dbInstance.wordRecords, dbInstance.chapterRecords, dbInstance.reviewRecords, async () => {
+    await Promise.all([dbInstance.wordRecords.clear(), dbInstance.chapterRecords.clear(), dbInstance.reviewRecords.clear()])
+
+    if (snapshot.wordRecords?.length) {
+      await dbInstance.wordRecords.bulkPut(snapshot.wordRecords)
+    }
+
+    if (snapshot.chapterRecords?.length) {
+      await dbInstance.chapterRecords.bulkPut(snapshot.chapterRecords)
+    }
+
+    if (snapshot.reviewRecords?.length) {
+      await dbInstance.reviewRecords.bulkPut(snapshot.reviewRecords)
+    }
+  })
+}
+
+export async function clearLegacyGuestDb() {
+  const legacyDb = new RecordDB('RecordDB')
+  try {
+    await legacyDb.delete()
+  } catch (error) {
+    console.warn('Failed to delete legacy RecordDB cache', error)
+  }
+}
+
+export const db = new Proxy({} as RecordDB, {
+  get(_target, prop, receiver) {
+    const value = Reflect.get(getActiveDb(), prop, receiver)
+    return typeof value === 'function' ? value.bind(getActiveDb()) : value
+  },
+}) as RecordDB
 
 export function useSaveChapterRecord() {
   const currentChapter = useAtomValue(currentChapterAtom)
@@ -46,25 +122,39 @@ export function useSaveChapterRecord() {
   const dictID = useAtomValue(currentDictIdAtom)
 
   const saveChapterRecord = useCallback(
-    (typingState: TypingState) => {
-      const {
-        chapterData: { correctCount, wrongCount, userInputLogs, wordCount, words, wordRecordIds },
-        timerData: { time },
-      } = typingState
-      const correctWordIndexes = userInputLogs.filter((log) => log.correctCount > 0 && log.wrongCount === 0).map((log) => log.index)
+    async (typingState: TypingState) => {
+      try {
+        const {
+          chapterData: { correctCount, wrongCount, userInputLogs, wordCount, words, wordRecordIds },
+          timerData: { time },
+        } = typingState
+        const correctWordIndexes = userInputLogs.filter((log) => log.correctCount > 0 && log.wrongCount === 0).map((log) => log.index)
 
-      const chapterRecord = new ChapterRecord(
-        dictID,
-        isRevision ? -1 : currentChapter,
-        time,
-        correctCount,
-        wrongCount,
-        wordCount,
-        correctWordIndexes,
-        words.length,
-        wordRecordIds ?? [],
-      )
-      db.chapterRecords.add(chapterRecord)
+        const chapterRecord = new ChapterRecord(
+          dictID,
+          isRevision ? -1 : currentChapter,
+          time,
+          correctCount,
+          wrongCount,
+          wordCount,
+          correctWordIndexes,
+          words.length,
+          wordRecordIds ?? [],
+        )
+
+        const syncedWordRecords =
+          wordRecordIds && wordRecordIds.length > 0
+            ? (await db.wordRecords.bulkGet(wordRecordIds)).filter((record): record is IWordRecord => Boolean(record))
+            : []
+
+        await syncPracticeBatch({
+          wordRecords: syncedWordRecords,
+          chapterRecords: [chapterRecord],
+        })
+        await db.chapterRecords.add(chapterRecord)
+      } catch (error) {
+        console.error(error)
+      }
     },
     [currentChapter, dictID, isRevision],
   )

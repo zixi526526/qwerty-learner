@@ -1,4 +1,5 @@
 import { normalizeProfileUsername } from './storage'
+import type { IChapterRecord, IReviewRecord, IWordRecord } from '@/utils/db/record'
 
 export type FamilyProfile = {
   id: string
@@ -23,6 +24,13 @@ export type FamilyBootstrap = {
   profile: FamilyProfile
   settings: FamilySyncDocument
   progress: FamilySyncDocument
+  practice: FamilyPracticeSnapshot
+}
+
+export type FamilyPracticeSnapshot = {
+  wordRecords: IWordRecord[]
+  chapterRecords: IChapterRecord[]
+  reviewRecords: IReviewRecord[]
 }
 
 export type FamilySnapshot = {
@@ -30,6 +38,7 @@ export type FamilySnapshot = {
   profiles: FamilyProfile[]
   runtimeMode: FamilyRuntimeMode
   lastSyncedAt: string | null
+  bootstrap: FamilyBootstrap | null
 }
 
 export type CreateFamilyProfileInput = {
@@ -195,6 +204,14 @@ function normalizeSyncDocument(rawDocument: Record<string, unknown> | null | und
   }
 }
 
+function normalizePracticeSnapshot(rawPractice: Record<string, unknown> | null | undefined): FamilyPracticeSnapshot {
+  return {
+    wordRecords: Array.isArray(rawPractice?.wordRecords) ? (rawPractice.wordRecords as IWordRecord[]) : [],
+    chapterRecords: Array.isArray(rawPractice?.chapterRecords) ? (rawPractice.chapterRecords as IChapterRecord[]) : [],
+    reviewRecords: Array.isArray(rawPractice?.reviewRecords) ? (rawPractice.reviewRecords as IReviewRecord[]) : [],
+  }
+}
+
 function normalizeBootstrap(rawBootstrap: Record<string, unknown> | null | undefined): FamilyBootstrap | null {
   if (!rawBootstrap) {
     return null
@@ -212,6 +229,7 @@ function normalizeBootstrap(rawBootstrap: Record<string, unknown> | null | undef
     profile,
     settings: normalizeSyncDocument(rawBootstrap.settings as Record<string, unknown> | undefined),
     progress: normalizeSyncDocument(rawBootstrap.progress as Record<string, unknown> | undefined),
+    practice: normalizePracticeSnapshot(rawBootstrap.practice as Record<string, unknown> | undefined),
   }
 }
 
@@ -242,75 +260,53 @@ async function fetchJson(path: string, init?: RequestInit) {
   return payload
 }
 
-async function tryLoadServerSnapshot(): Promise<FamilySnapshot | null> {
-  try {
-    const profilesPayload = await fetchJson('/api/profiles', { method: 'GET' })
-    const profiles = Array.isArray(profilesPayload.profiles)
-      ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
-      : Array.isArray(profilesPayload.data)
-        ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
-        : []
+async function loadServerSnapshot(): Promise<FamilySnapshot> {
+  const profilesPayload = await fetchJson('/api/profiles', { method: 'GET' })
+  const profiles = Array.isArray(profilesPayload.profiles)
+    ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
+    : Array.isArray(profilesPayload.data)
+      ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
+      : []
 
-    const meResponse = await fetch('/api/me', {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-      credentials: 'include',
-    })
+  const meResponse = await fetch('/api/me', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    credentials: 'include',
+  })
 
-    let activeProfile: FamilyProfile | null = null
-    let lastSyncedAt: string | null = null
+  let activeProfile: FamilyProfile | null = null
+  let bootstrap: FamilyBootstrap | null = null
 
-    if (meResponse.ok) {
-      const mePayload = (await meResponse.json()) as Record<string, unknown>
-      const meCandidate =
-        (typeof mePayload.profile === 'object' && mePayload.profile ? mePayload.profile : null) ||
-        (typeof mePayload.user === 'object' && mePayload.user ? mePayload.user : null) ||
-        mePayload
-      activeProfile = normalizeProfile(meCandidate as Record<string, unknown>)
+  if (meResponse.ok) {
+    const mePayload = (await meResponse.json()) as Record<string, unknown>
+    const meCandidate =
+      (typeof mePayload.profile === 'object' && mePayload.profile ? mePayload.profile : null) ||
+      (typeof mePayload.user === 'object' && mePayload.user ? mePayload.user : null) ||
+      mePayload
+    activeProfile = normalizeProfile(meCandidate as Record<string, unknown>)
 
-      if (activeProfile) {
-        try {
-          const bootstrapPayload = await fetchJson('/api/sync/bootstrap', { method: 'GET' })
-          const bootstrap = normalizeBootstrap(bootstrapPayload)
-          lastSyncedAt = bootstrap
-            ? getLatestTimestamp(bootstrap.profile.lastSeenAt, bootstrap.settings.updatedAt, bootstrap.progress.updatedAt)
-            : getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt)
-        } catch (error) {
-          console.warn('Bootstrap endpoint unavailable, continuing with profile shell only', error)
-          lastSyncedAt = getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt) || getTimestamp()
-        }
-      }
+    if (activeProfile) {
+      bootstrap = normalizeBootstrap(await fetchJson('/api/sync/bootstrap', { method: 'GET' }))
     }
-
-    return {
-      profiles,
-      activeProfile,
-      runtimeMode: 'server',
-      lastSyncedAt,
-    }
-  } catch (error) {
-    console.warn('Server family APIs unavailable, falling back to local family shell', error)
-    return null
   }
-}
 
-function loadLocalSnapshot(): FamilySnapshot {
-  const profiles = readLocalProfiles()
-  const activeProfileId = readLocalActiveProfileId()
-  const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || null
+  const lastSyncedAt = bootstrap
+    ? getLatestTimestamp(bootstrap.profile.lastSeenAt, bootstrap.settings.updatedAt, bootstrap.progress.updatedAt)
+    : getLatestTimestamp(activeProfile?.lastSeenAt, activeProfile?.updatedAt)
 
   return {
     profiles,
     activeProfile,
-    runtimeMode: 'local',
-    lastSyncedAt: activeProfile?.lastSeenAt || null,
+    runtimeMode: 'server',
+    lastSyncedAt,
+    bootstrap,
   }
 }
 
 export async function loadFamilySnapshot(): Promise<FamilySnapshot> {
-  return (await tryLoadServerSnapshot()) || loadLocalSnapshot()
+  return loadServerSnapshot()
 }
 
 export async function createFamilyProfile(runtimeMode: FamilyRuntimeMode, input: CreateFamilyProfileInput) {
@@ -384,6 +380,7 @@ export async function selectFamilyProfile(runtimeMode: FamilyRuntimeMode, profil
       lastSyncedAt: bootstrap
         ? getLatestTimestamp(activeProfile.lastSeenAt, bootstrap.settings.updatedAt, bootstrap.progress.updatedAt)
         : getLatestTimestamp(activeProfile.lastSeenAt, activeProfile.updatedAt) || timestamp,
+      bootstrap,
     }
   }
 
@@ -404,6 +401,7 @@ export async function selectFamilyProfile(runtimeMode: FamilyRuntimeMode, profil
   return {
     activeProfile: profiles.find((candidate) => candidate.id === profile.id) || null,
     lastSyncedAt: timestamp,
+    bootstrap: null,
   }
 }
 

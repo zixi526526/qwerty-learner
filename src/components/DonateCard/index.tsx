@@ -3,6 +3,7 @@ import { DonatingCard } from '../DonatingCard'
 import { StickerButton } from '../DonatingCard/components/StickerButton'
 import { useChapterNumber, useDayFromFirstWordRecord, useSumWrongCount, useWordNumber } from './hooks/useWordStats'
 import { DONATE_DATE } from '@/constants'
+import { getProfileScopedStorageItem, setProfileScopedStorageItem } from '@/store/profileStorage'
 import { reportDonateCard } from '@/utils'
 import noop from '@/utils/noop'
 import { Dialog, Transition } from '@headlessui/react'
@@ -42,7 +43,7 @@ export const DonateCard = () => {
 
     setShow(false)
     const now = dayjs()
-    window.localStorage.setItem(DONATE_DATE, now.format())
+    setProfileScopedStorageItem(DONATE_DATE, now.format())
   }
 
   const onClickRemindMeLater = () => {
@@ -67,7 +68,7 @@ export const DonateCard = () => {
     if (chapterNumber && chapterNumber !== 0 && chapterNumber % 5 === 0) {
       const now = dayjs()
 
-      const storedDonateDate = window.localStorage.getItem(DONATE_DATE)
+      const storedDonateDate = getProfileScopedStorageItem(DONATE_DATE)
       if (storedDonateDate) {
         const diff = now.diff(dayjs(storedDonateDate), 'day')
         if (diff <= 30) return

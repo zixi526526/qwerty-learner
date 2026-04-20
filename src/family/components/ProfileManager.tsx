@@ -17,7 +17,7 @@ type ProfileManagerProps = {
 }
 
 export default function ProfileManager({ onClose, showCloseButton = false }: ProfileManagerProps) {
-  const { activeProfile, createProfile, deleteProfile, error, exportProfile, isLoading, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, updateProfile } =
+  const { activeProfile, createProfile, deleteProfile, error, exportProfile, isLoading, isServerUnavailable, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, updateProfile } =
     useFamily()
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -26,7 +26,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
   const [pending, setPending] = useState(false)
 
   const activeProfileId = activeProfile?.id
-  const statusLabel = runtimeMode === 'server' ? 'Synced with the family server' : 'Local preview mode until /api is available'
+  const statusLabel = runtimeMode === 'server' ? 'Synced with the family server' : 'Server unavailable'
   const subtitle = useMemo(() => {
     if (!lastSyncedAt) {
       return statusLabel
@@ -34,6 +34,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
 
     return `${statusLabel} · Last sync ${formatDateTime(lastSyncedAt)}`
   }, [lastSyncedAt, statusLabel])
+  const isInteractionBlocked = pending || isLoading || isServerUnavailable
 
   const resetDraft = () => {
     setUsername('')
@@ -108,7 +109,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
             {activeProfile ? `Welcome back, ${activeProfile.displayName}` : 'Choose a family profile'}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-            Username-only profiles keep each family member&apos;s local cache and practice history isolated while the backend sync contract comes online.
+            Family profiles now use the server as the source of truth. Settings and practice history follow each user across devices, while popup hints stay local to this browser.
           </p>
           <p className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">{subtitle}</p>
         </div>
@@ -139,7 +140,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                 className="rounded-xl border border-gray-300 px-3 py-2 text-base text-gray-900 outline-none transition focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                 placeholder="alex"
                 value={username}
-                disabled={Boolean(editingProfileId)}
+                disabled={Boolean(editingProfileId) || isInteractionBlocked}
                 onChange={(event) => setUsername(event.target.value)}
               />
             </label>
@@ -149,6 +150,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                 className="rounded-xl border border-gray-300 px-3 py-2 text-base text-gray-900 outline-none transition focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                 placeholder="Alex"
                 value={displayName}
+                disabled={isInteractionBlocked}
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </label>
@@ -158,11 +160,12 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                 className="min-h-[96px] rounded-xl border border-gray-300 px-3 py-2 text-base text-gray-900 outline-none transition focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                 placeholder="Ready for another typing session?"
                 value={welcomeMessage}
+                disabled={isInteractionBlocked}
                 onChange={(event) => setWelcomeMessage(event.target.value)}
               />
             </label>
             <div className="flex flex-wrap gap-3">
-              <button className="my-btn-primary" type="button" disabled={pending || isLoading} onClick={() => void handleSubmit()}>
+              <button className="my-btn-primary" type="button" disabled={isInteractionBlocked} onClick={() => void handleSubmit()}>
                 {editingProfileId ? 'Save profile' : 'Create and select'}
               </button>
               {editingProfileId && (
@@ -170,7 +173,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                   className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
                   type="button"
                   onClick={resetDraft}
-                  disabled={pending}
+                  disabled={isInteractionBlocked}
                 >
                   Cancel edit
                 </button>
@@ -221,14 +224,14 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {!isActive && (
-                          <button className="my-btn-primary" type="button" disabled={pending} onClick={() => void selectProfile(profile)}>
+                          <button className="my-btn-primary" type="button" disabled={isInteractionBlocked} onClick={() => void selectProfile(profile)}>
                             Switch
                           </button>
                         )}
                         <button
                           className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
                           type="button"
-                          disabled={pending}
+                          disabled={isInteractionBlocked}
                           onClick={() => void exportProfile(profile)}
                         >
                           Export
@@ -236,7 +239,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                         <button
                           className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
                           type="button"
-                          disabled={pending}
+                          disabled={isInteractionBlocked}
                           onClick={() => startEditing(profile)}
                         >
                           Edit
@@ -244,7 +247,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                         <button
                           className="rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 dark:border-red-800 dark:text-red-300"
                           type="button"
-                          disabled={pending}
+                          disabled={isInteractionBlocked}
                           onClick={() => void handleDelete(profile)}
                         >
                           Delete

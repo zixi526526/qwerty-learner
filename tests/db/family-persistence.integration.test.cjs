@@ -14,6 +14,7 @@ const {
   getProfileByUsername,
   saveDocument,
 } = require('../../server/lib/store.cjs')
+const { listPracticeRecords, upsertPracticeRecords } = require('../../server/lib/practice-store.cjs')
 
 function createEnv() {
   return {
@@ -47,6 +48,21 @@ test('sqlite store persists profile settings and progress across reopen and casc
   saveDocument(db, SETTINGS_TABLE, alice.id, 0, { theme: 'dark' })
   saveDocument(db, PROGRESS_TABLE, alice.id, 0, { chapter: 8 })
   saveDocument(db, SETTINGS_TABLE, bob.id, 0, { theme: 'light' })
+  upsertPracticeRecords(db, alice.id, {
+    wordRecords: [
+      {
+        recordId: 'word-alice-1',
+        updatedAt: '2026-04-20T00:00:00.000Z',
+        word: 'alpha',
+        timeStamp: 1,
+        dict: 'cet4',
+        chapter: 0,
+        timing: [100],
+        wrongCount: 0,
+        mistakes: {},
+      },
+    ],
+  })
   db.close()
 
   reopened = openDatabase(env)
@@ -55,6 +71,7 @@ test('sqlite store persists profile settings and progress across reopen and casc
   assert.deepEqual(getDocument(reopened, SETTINGS_TABLE, alice.id).payload, { theme: 'dark' })
   assert.deepEqual(getDocument(reopened, PROGRESS_TABLE, alice.id).payload, { chapter: 8 })
   assert.deepEqual(getDocument(reopened, SETTINGS_TABLE, bob.id).payload, { theme: 'light' })
+  assert.equal(listPracticeRecords(reopened, alice.id).wordRecords[0].recordId, 'word-alice-1')
 
   deleteProfile(reopened, bob.id)
   assert.equal(getProfileByUsername(reopened, 'bob-db'), null)

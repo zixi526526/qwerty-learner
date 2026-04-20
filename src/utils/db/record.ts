@@ -1,7 +1,21 @@
 import { getUTCUnixTimestamp } from '../index'
 import type { Word } from '@/typings'
 
+function createRecordId() {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `record-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function getUpdatedAt() {
+  return new Date().toISOString()
+}
+
 export interface IWordRecord {
+  recordId: string
+  updatedAt: string
   word: string
   timeStamp: number
   // 正常章节为 dictKey, 其他功能则为对应的类型
@@ -22,6 +36,8 @@ export interface LetterMistakes {
 }
 
 export class WordRecord implements IWordRecord {
+  recordId: string
+  updatedAt: string
   word: string
   timeStamp: number
   dict: string
@@ -31,6 +47,8 @@ export class WordRecord implements IWordRecord {
   mistakes: LetterMistakes
 
   constructor(word: string, dict: string, chapter: number | null, timing: number[], wrongCount: number, mistakes: LetterMistakes) {
+    this.recordId = createRecordId()
+    this.updatedAt = getUpdatedAt()
     this.word = word
     this.timeStamp = getUTCUnixTimestamp()
     this.dict = dict
@@ -46,6 +64,8 @@ export class WordRecord implements IWordRecord {
 }
 
 export interface IChapterRecord {
+  recordId: string
+  updatedAt: string
   // 正常章节为 dictKey, 其他功能则为对应的类型
   dict: string
   // 在错题场景中为 -1
@@ -68,6 +88,8 @@ export interface IChapterRecord {
 }
 
 export class ChapterRecord implements IChapterRecord {
+  recordId: string
+  updatedAt: string
   dict: string
   chapter: number | null
   timeStamp: number
@@ -90,6 +112,8 @@ export class ChapterRecord implements IChapterRecord {
     wordNumber: number,
     wordRecordIds: number[],
   ) {
+    this.recordId = createRecordId()
+    this.updatedAt = getUpdatedAt()
     this.dict = dict
     this.chapter = chapter
     this.timeStamp = getUTCUnixTimestamp()
@@ -117,6 +141,8 @@ export class ChapterRecord implements IChapterRecord {
 
 export interface IReviewRecord {
   id?: number
+  recordId: string
+  updatedAt: string
   dict: string
   // 当前练习进度
   index: number
@@ -130,6 +156,8 @@ export interface IReviewRecord {
 
 export class ReviewRecord implements IReviewRecord {
   id?: number
+  recordId: string
+  updatedAt: string
   dict: string
   index: number
   createTime: number
@@ -137,6 +165,8 @@ export class ReviewRecord implements IReviewRecord {
   words: Word[]
 
   constructor(dict: string, words: Word[]) {
+    this.recordId = createRecordId()
+    this.updatedAt = getUpdatedAt()
     this.dict = dict
     this.index = 0
     this.createTime = getUTCUnixTimestamp()

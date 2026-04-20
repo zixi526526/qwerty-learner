@@ -1,6 +1,6 @@
 # Self-hosted family mode
 
-This repo now includes a single-process Node + SQLite backend scaffold plus a family-profile shell that can be verified through npm-only commands.
+This repo now includes a single-process Node + SQLite backend scaffold plus a family-profile shell where the server is the source of truth for synced settings and practice history.
 
 ## Runtime layout
 - `npm run start` — serves the Fastify backend on one local port (`PORT`, default `4173`)
@@ -55,7 +55,15 @@ In production, the intended flow is:
 - `GET /api/sync/bootstrap`
 - `PUT /api/sync/settings`
 - `PUT /api/sync/progress`
+- `PUT /api/sync/practice`
 - `POST /api/migrations/import-local`
+
+## Sync model
+- Server is the source of truth for family-mode settings and practice history.
+- Browser `localStorage` and IndexedDB act as per-profile caches, not the canonical data store.
+- Popup/dismissal hints stay device-local.
+- Practice data sync currently happens when a small chapter completes.
+- If the family server is unavailable, the app blocks synced family interactions instead of silently falling back to divergent local-only writes.
 
 ## Current trust model
 Family mode is intentionally low-friction and household-shared:
@@ -89,10 +97,11 @@ Use npm-only verification commands for the family mode path:
 ### API
 - profile create/select/update/delete/export
 - `/api/me` session identity
-- bootstrap/settings/progress sync
+- bootstrap/settings/progress/practice sync
 - revision conflict behavior
 - unauthorized sync rejection
 - logout/session cleanup
+- practice upsert keeps the newest record copy for duplicate `recordId`
 
 ### DB
 - profile document initialization
@@ -100,4 +109,10 @@ Use npm-only verification commands for the family mode path:
 
 ### E2E
 - first-use profile creation into the integrated typing shell
-- scaffold placeholders remain for sync, isolation, migration, conflict handling, and broader regression coverage
+- same-device profile isolation
+- cross-device settings convergence
+- cross-device practice hydration into error book
+- strict blocking when the server is unavailable
+- stale settings revision conflict recovery
+- profile-management selector updates
+- typing / analysis / gallery / error-book regression coverage
