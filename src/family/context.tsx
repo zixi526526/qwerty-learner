@@ -1,6 +1,7 @@
 import {
   createFamilyProfile,
   deleteFamilyProfile,
+  exportFamilyProfile,
   loadFamilySnapshot,
   logoutFamilyProfile,
   selectFamilyProfile,
@@ -20,7 +21,8 @@ type FamilyContextValue = {
   profiles: FamilyProfile[]
   runtimeMode: FamilyRuntimeMode
   createProfile: (input: CreateFamilyProfileInput) => Promise<void>
-  deleteProfile: (profileId: string) => Promise<void>
+  deleteProfile: (profileId: string, confirmationText?: string) => Promise<void>
+  exportProfile: (profile: FamilyProfile) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   selectProfile: (profile: FamilyProfile) => Promise<void>
@@ -104,11 +106,11 @@ export function FamilyProvider({ children }: PropsWithChildren) {
   )
 
   const deleteProfileEntry = useCallback(
-    async (profileId: string) => {
+    async (profileId: string, confirmationText?: string) => {
       setError(null)
       const isDeletingActiveProfile = activeProfile?.id === profileId
 
-      await deleteFamilyProfile(runtimeMode, profileId)
+      await deleteFamilyProfile(runtimeMode, profileId, confirmationText)
       setProfiles((currentProfiles) => currentProfiles.filter((candidate) => candidate.id !== profileId))
 
       if (isDeletingActiveProfile) {
@@ -118,6 +120,14 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       }
     },
     [activeProfile?.id, runtimeMode],
+  )
+
+  const exportProfileEntry = useCallback(
+    async (profile: FamilyProfile) => {
+      setError(null)
+      await exportFamilyProfile(runtimeMode, profile)
+    },
+    [runtimeMode],
   )
 
   const logout = useCallback(async () => {
@@ -141,12 +151,13 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       runtimeMode,
       createProfile,
       deleteProfile: deleteProfileEntry,
+      exportProfile: exportProfileEntry,
       logout,
       refresh,
       selectProfile,
       updateProfile: updateProfileEntry,
     }
-  }, [activeProfile, createProfile, deleteProfileEntry, error, isLoading, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, storeEpoch, updateProfileEntry])
+  }, [activeProfile, createProfile, deleteProfileEntry, error, exportProfileEntry, isLoading, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, storeEpoch, updateProfileEntry])
 
   return <FamilyContext.Provider value={value}>{children}</FamilyContext.Provider>
 }
