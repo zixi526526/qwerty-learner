@@ -138,10 +138,14 @@ function buildApp(options = {}) {
       return reply.status(400).send({ error: validation.message })
     }
 
-    const profile = getProfileByUsername(db, validation.normalized)
-    if (!profile) {
-      return reply.status(404).send({ error: 'Profile not found.' })
-    }
+    const profile =
+      getProfileByUsername(db, validation.normalized) ||
+      createProfile(db, {
+        username: validation.trimmed,
+        normalizedUsername: validation.normalized,
+        displayName: sanitizeDisplayName(request.body?.displayName, validation.trimmed),
+        welcomeMessage: sanitizeWelcomeMessage(request.body?.welcomeMessage),
+      })
 
     if (request.cookies[COOKIE_NAME]) {
       destroySession(db, request.cookies[COOKIE_NAME])

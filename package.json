@@ -76,7 +76,10 @@
     "prettier": "prettier --write .",
     "prepare": "husky install",
     "start:client": "vite",
-    "start:server": "node server/index.cjs"
+    "start:server": "node server/index.cjs",
+    "test:api": "node --test tests/api/*.test.cjs",
+    "test:db": "node --test tests/db/*.test.cjs",
+    "test:unit": "node --test tests/unit/*.test.cjs"
   },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
