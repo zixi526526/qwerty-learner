@@ -136,3 +136,57 @@ test('sync APIs persist data, surface conflicts, and support explicit migration 
   assert.equal(imported.json().settings.payload.currentDict, 'ielts')
   assert.equal(imported.json().progress.payload.chapterRecords[0].chapter, 2)
 })
+
+
+test('unauthorized sync endpoints reject requests without a selected family profile', async (t) => {
+  const { app, root } = await createApp()
+  t.after(async () => {
+    await app.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const bootstrap = await app.inject({ method: 'GET', url: '/api/sync/bootstrap' })
+  assert.equal(bootstrap.statusCode, 401)
+  assert.match(bootstrap.json().error, /Select a family profile first/)
+
+  const importLocal = await app.inject({
+    method: 'POST',
+    url: '/api/migrations/import-local',
+    payload: { settingsPayload: {}, progressPayload: {} },
+  })
+  assert.equal(importLocal.statusCode, 401)
+})
+
+test('invalid usernames are rejected and logout clears the active session', async (t) => {
+  const { app, root } = await createApp()
+  t.after(async () => {
+    await app.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const invalidProfile = await app.inject({
+    method: 'POST',
+    url: '/api/profiles',
+    payload: { username: '!bad-name' },
+  })
+  assert.equal(invalidProfile.statusCode, 400)
+
+  const select = await app.inject({
+    method: 'POST',
+    url: '/api/session/select',
+    payload: { username: 'FamilyLogout' },
+  })
+  assert.equal(select.statusCode, 200)
+  const cookie = getCookie(select)
+
+  const logout = await app.inject({
+    method: 'POST',
+    url: '/api/session/logout',
+    headers: { cookie },
+  })
+  assert.equal(logout.statusCode, 200)
+
+  const meAfterLogout = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie } })
+  assert.equal(meAfterLogout.statusCode, 200)
+  assert.equal(meAfterLogout.json().profile, null)
+})
