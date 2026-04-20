@@ -13,7 +13,7 @@ test.describe('Family multi-user verification scaffold', () => {
   test('first-use profile creation reaches the integrated typing shell @family-local', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByRole('heading', { name: /choose a family profile/i })).toBeVisible()
+    await expect(page.getByText('Choose a family profile')).toBeVisible()
     await page.getByLabel('Username').fill('FamilyAlpha')
     await page.getByLabel('Display name').fill('Family Alpha')
     await page.getByLabel('Welcome message').fill('Ready to type together')
