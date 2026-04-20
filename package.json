@@ -71,15 +71,12 @@
     "test:api": "node --test tests/api/*.test.cjs",
     "test:db": "node --test tests/db/*.test.cjs",
     "test:e2e:local": "cross-env PLAYWRIGHT_LOCAL=1 playwright test --project=chromium",
-    "start:local-e2e": "vite --host 127.0.0.1 --port 4173",
+    "start:local-e2e": "npm run build && node -e \"require('fs').rmSync('.tmp/playwright-family',{recursive:true,force:true})\" && cross-env QL_DATA_DIR=.tmp/playwright-family node server/index.cjs",
     "lint": "eslint .",
     "prettier": "prettier --write .",
     "prepare": "husky install",
     "start:client": "vite",
-    "start:server": "node server/index.cjs",
-    "test:api": "node --test tests/api/*.test.cjs",
-    "test:db": "node --test tests/db/*.test.cjs",
-    "test:unit": "node --test tests/unit/*.test.cjs"
+    "start:server": "node server/index.cjs"
   },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [

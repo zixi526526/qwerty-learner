@@ -1,6 +1,6 @@
 # Self-hosted family mode
 
-This repo now includes a single-process Node + SQLite backend scaffold for the family multi-user retrofit.
+This repo now includes a single-process, single-port Node server + SQLite backend scaffold for the family multi-user retrofit.
 
 ## Runtime layout
 - `npm run start` — serves the Fastify backend on one local port (`PORT`, default `4173`)
@@ -56,3 +56,7 @@ Family mode is intentionally low-friction and household-shared:
 - `npm run test:api`
 - `npm run test:db`
 - `npm run build`
+- `npm run start:local-e2e`
+- `npm run test:e2e:local`
+
+`npm run start:local-e2e` now exercises the integrated one-port path by building the SPA, clearing `.tmp/playwright-family`, and starting the Node server with SQLite-backed APIs on `127.0.0.1:4173`.
