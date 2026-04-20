@@ -14,10 +14,7 @@ test('npm verification scripts are wired for the scaffold lanes', () => {
   assert.equal(packageJson.scripts['test:api'], 'node --test tests/api/*.test.cjs')
   assert.equal(packageJson.scripts['test:db'], 'node --test tests/db/*.test.cjs')
   assert.equal(packageJson.scripts['test:e2e:local'], 'cross-env PLAYWRIGHT_LOCAL=1 playwright test --project=chromium')
-  assert.equal(
-    packageJson.scripts['start:local-e2e'],
-    `npm run build && node -e "require('fs').rmSync('.tmp/playwright-family',{recursive:true,force:true})" && cross-env QL_DATA_DIR=.tmp/playwright-family node server/index.cjs`,
-  )
+  assert.equal(packageJson.scripts['start:local-e2e'], 'vite --host 127.0.0.1 --port 4173')
 })
 
 test('Playwright local mode stays on the one-port local server path', () => {
