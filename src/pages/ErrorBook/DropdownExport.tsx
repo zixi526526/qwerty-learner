@@ -1,3 +1,5 @@
+import type { groupedWordRecords } from './type'
+import type { Word } from '@/typings'
 import { idDictionaryMap } from '@/resources/dictionary'
 import { wordListFetcher } from '@/utils/wordListFetcher'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -6,14 +8,23 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
 
+type ExportFileType = 'csv' | 'txt' | 'xlsx'
+
+type ExportRow = {
+  单词: string
+  释义: string
+  错误次数: number
+  词典: string
+}
+
 type DropdownProps = {
-  renderRecords: any
+  renderRecords: groupedWordRecords[]
 }
 
 const DropdownExport: FC<DropdownProps> = ({ renderRecords }) => {
   const [isExporting, setIsExporting] = useState(false)
 
-  const formatTimestamp = (date: any) => {
+  const formatTimestamp = (date: Date) => {
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0') // 月份从0开始
     const day = String(date.getDate()).padStart(2, '0')
@@ -24,13 +35,13 @@ const DropdownExport: FC<DropdownProps> = ({ renderRecords }) => {
     return `${year}-${month}-${day} ${hours}-${minutes}-${seconds}`
   }
 
-  const handleExport = async (bookType: string) => {
+  const handleExport = async (bookType: ExportFileType) => {
     setIsExporting(true)
 
     try {
       // 获取所有需要的词典数据
       const dictUrls: string[] = []
-      renderRecords.forEach((item: any) => {
+      renderRecords.forEach((item) => {
         const dictInfo = idDictionaryMap[item.dict]
         if (dictInfo?.url && !dictUrls.includes(dictInfo.url)) {
           dictUrls.push(dictInfo.url)
@@ -38,32 +49,31 @@ const DropdownExport: FC<DropdownProps> = ({ renderRecords }) => {
       })
 
       // 并行获取所有词典数据
-      const dictDataPromises = dictUrls.map(async (url) => {
+      const dictDataPromises = dictUrls.map(async (url): Promise<readonly [string, Word[]]> => {
         try {
-          const data = await wordListFetcher(url)
-          return { url, data }
+          return [url, await wordListFetcher(url)] as const
         } catch (error) {
           console.error(`Failed to fetch dictionary data from ${url}:`, error)
-          return { url, data: [] }
+          return [url, []] as const
         }
       })
 
       const dictDataResults = await Promise.all(dictDataPromises)
-      const dictDataMap = new Map(dictDataResults.map((result) => [result.url, result.data]))
+      const dictDataMap = new Map<string, Word[]>(dictDataResults)
 
-      const ExportData: Array<{ 单词: string; 释义: string; 错误次数: number; 词典: string }> = []
+      const exportData: ExportRow[] = []
 
-      renderRecords.forEach((item: any) => {
+      renderRecords.forEach((item) => {
         const dictInfo = idDictionaryMap[item.dict]
         let translation = ''
 
         if (dictInfo?.url && dictDataMap.has(dictInfo.url)) {
-          const wordList = dictDataMap.get(dictInfo.url) || []
-          const word = wordList.find((w: any) => w.name === item.word)
+          const wordList = dictDataMap.get(dictInfo.url) ?? []
+          const word = wordList.find((entry) => entry.name === item.word)
           translation = word ? word.trans.join('；') : ''
         }
 
-        ExportData.push({
+        exportData.push({
           单词: item.word,
           释义: translation,
           错误次数: item.wrongCount,
@@ -74,10 +84,10 @@ const DropdownExport: FC<DropdownProps> = ({ renderRecords }) => {
       let blob: Blob
 
       if (bookType === 'txt') {
-        const content = ExportData.map((item: any) => `${item.单词}: ${item.释义}`).join('\n')
+        const content = exportData.map((item) => `${item.单词}: ${item.释义}`).join('\n')
         blob = new Blob([content], { type: 'text/plain' })
       } else {
-        const worksheet = XLSX.utils.json_to_sheet(ExportData)
+        const worksheet = XLSX.utils.json_to_sheet(exportData)
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
         const excelBuffer = XLSX.write(workbook, { bookType: bookType as XLSX.BookType, type: 'array' })

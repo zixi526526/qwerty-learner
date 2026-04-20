@@ -123,6 +123,18 @@ function createProfileId() {
   return `family-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function normalizeProfileId(rawId: unknown, fallbackId: string) {
+  if (typeof rawId === 'string' && rawId.trim()) {
+    return rawId
+  }
+
+  if (typeof rawId === 'number' && Number.isFinite(rawId)) {
+    return String(rawId)
+  }
+
+  return fallbackId
+}
+
 function normalizeProfile(rawProfile: Partial<FamilyProfile> & Record<string, unknown>): FamilyProfile | null {
   if (!rawProfile) {
     return null
@@ -150,7 +162,7 @@ function normalizeProfile(rawProfile: Partial<FamilyProfile> & Record<string, un
         : createWelcomeMessage(displayName || normalizedUsername)
 
   return {
-    id: typeof rawProfile.id === 'string' ? rawProfile.id : normalizedUsername,
+    id: normalizeProfileId(rawProfile.id, normalizedUsername),
     username: normalizedUsername,
     displayName: displayName || normalizedUsername,
     welcomeMessage,
@@ -222,7 +234,8 @@ async function fetchJson(path: string, init?: RequestInit) {
   const payload = (await response.json()) as Record<string, unknown>
 
   if (!response.ok) {
-    const message = typeof payload.message === 'string' ? payload.message : `Request failed for ${path}`
+    const message =
+      typeof payload.error === 'string' ? payload.error : typeof payload.message === 'string' ? payload.message : `Request failed for ${path}`
     throw new Error(message)
   }
 

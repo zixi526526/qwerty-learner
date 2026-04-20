@@ -85,6 +85,7 @@ test('profile management endpoints update, export, delete, and guard confirmatio
     payload: { confirmationText: 'wrong-name' },
   })
   assert.equal(rejectedDelete.statusCode, 400)
+  assert.match(rejectedDelete.json().error, /Type FamilyBeta to confirm deletion\./)
 
   const deleted = await app.inject({
     method: 'DELETE',
