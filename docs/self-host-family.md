@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Self-hosted family mode
 
 This repo now includes a single-process Node + SQLite backend scaffold plus a family-profile shell that can be verified through npm-only commands.
