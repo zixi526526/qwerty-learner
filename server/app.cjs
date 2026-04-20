@@ -167,7 +167,7 @@ function buildApp(options = {}) {
     return { ok: true }
   })
 
-  app.get('/api/me', async () => {
+  app.get('/api/me', async (request) => {
     return { profile: requestProfile(request) }
   })
 
