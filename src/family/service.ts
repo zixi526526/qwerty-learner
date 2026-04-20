@@ -147,6 +147,10 @@ function normalizeProfile(rawProfile: Partial<FamilyProfile> & Record<string, un
   }
 }
 
+function isFamilyProfile(profile: FamilyProfile | null): profile is FamilyProfile {
+  return profile !== null
+}
+
 async function fetchJson(path: string, init?: RequestInit) {
   const response = await fetch(path, {
     headers: {
@@ -177,9 +181,9 @@ async function tryLoadServerSnapshot(): Promise<FamilySnapshot | null> {
   try {
     const profilesPayload = await fetchJson('/api/profiles', { method: 'GET' })
     const profiles = Array.isArray(profilesPayload.profiles)
-      ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(Boolean)
+      ? profilesPayload.profiles.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
       : Array.isArray(profilesPayload.data)
-        ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(Boolean)
+        ? profilesPayload.data.map((profile) => normalizeProfile(profile as Record<string, unknown>)).filter(isFamilyProfile)
         : []
 
     const meResponse = await fetch('/api/me', {
