@@ -15,6 +15,19 @@ In production, the intended flow is:
 3. `npm run start`
 4. Point Cloudflare Tunnel (or another reverse proxy) at the local Node port
 
+## VPS local-only deployment
+- Keep the app bound to `127.0.0.1:4173`
+- Store runtime data outside the repo, for example `/home/angbo0412OMX/qwerty2-data`
+- Use `deploy/qwerty2.env.example` as the env template
+- Use `deploy/systemd/qwerty2.service` as the systemd unit template
+- Install flow:
+  1. `npm install`
+  2. `npm run build`
+  3. copy the env file to `/etc/qwerty2/qwerty2.env`
+  4. copy the service file to `/etc/systemd/system/qwerty2.service`
+  5. `sudo systemctl daemon-reload`
+  6. `sudo systemctl enable --now qwerty2.service`
+
 ## Data location
 - Default SQLite path: `.data/qwerty-family.sqlite`
 - Override with `QL_DB_PATH=/absolute/path/to/qwerty-family.sqlite`

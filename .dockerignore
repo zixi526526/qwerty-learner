@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.omx
+.vscode
+.husky
+
+node_modules
+build
+playwright-report
+test-results
+.data
+
+stats.html
+

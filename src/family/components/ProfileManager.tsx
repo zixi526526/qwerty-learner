@@ -1,5 +1,6 @@
 import { useFamily } from '../context'
 import type { FamilyProfile } from '../service'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useMemo, useState } from 'react'
 
 function formatDateTime(value: string | null) {
@@ -90,8 +91,16 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
     }
   }
 
+  const stopKeyboardPropagation = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+  }
+
   return (
-    <div className="w-full max-w-5xl rounded-3xl border border-indigo-100 bg-white/95 p-6 shadow-2xl backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+    <div
+      className="w-full max-w-5xl rounded-3xl border border-indigo-100 bg-white/95 p-6 shadow-2xl backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+      onKeyDown={stopKeyboardPropagation}
+      onKeyUp={stopKeyboardPropagation}
+    >
       <div className="flex flex-col gap-3 border-b border-indigo-100 pb-6 dark:border-gray-700 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Family shell</p>

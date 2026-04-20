@@ -1,0 +1,20 @@
+[Unit]
+Description=Qwerty2 Self-Hosted Family Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=angbo0412OMX
+Group=angbo0412OMX
+WorkingDirectory=/home/angbo0412OMX/zixi-workspace-live-greenut2/qwerty2
+EnvironmentFile=/etc/qwerty2/qwerty2.env
+Environment=PATH=/home/angbo0412OMX/.local/share/fnm/node-versions/v24.15.0/installation/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/angbo0412OMX/.local/share/fnm/node-versions/v24.15.0/installation/bin/npm run start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
