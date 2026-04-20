@@ -63,6 +63,8 @@
     "build": "cross-env CI=false vite build --base=./",
     "test": "echo \"No tests\"",
     "test:e2e": "playwright test",
+    "test:e2e:local": "cross-env PLAYWRIGHT_LOCAL=1 playwright test --project=chromium",
+    "start:local-e2e": "vite --host 127.0.0.1 --port 4173",
     "lint": "eslint .",
     "prettier": "prettier --write .",
     "prepare": "husky install"
