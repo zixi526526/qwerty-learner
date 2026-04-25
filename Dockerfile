@@ -1,14 +1,33 @@
-FROM node:20 AS build
+FROM node:20-bookworm-slim AS deps
 
-# 设置工作目录
 WORKDIR /app
 
-COPY . .
-RUN npm config set registry  https://registry.npmmirror.com  
-RUN npm install
-RUN npm run build
+COPY package.json yarn.lock ./
+RUN corepack enable \
+  && yarn config set registry https://registry.npmjs.org \
+  && yarn install --frozen-lockfile --non-interactive --network-timeout 600000
 
-# 将构建好的 React 应用复制到 Nginx 容器的默认站点目录
-FROM nginx:alpine
-COPY ./public/default.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/build /app
+FROM deps AS build
+
+COPY . .
+RUN yarn build
+
+FROM node:20-bookworm-slim AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+  HOST=0.0.0.0 \
+  PORT=4173 \
+  QL_DATA_DIR=/app/.data
+
+COPY package.json yarn.lock ./
+COPY --from=deps /app/node_modules ./node_modules
+
+COPY --from=build /app/build ./build
+COPY public ./public
+COPY server ./server
+
+EXPOSE 4173
+
+CMD ["yarn", "start"]

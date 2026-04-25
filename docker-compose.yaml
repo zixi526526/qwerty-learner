@@ -1,9 +1,16 @@
-version: '3'
-
 services:
-  qwertylearner:
+  qwerty-learner:
     build:
       context: .
-      dockerfile: Dockerfile
+    container_name: qwerty-learner
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4173
+      QL_DATA_DIR: /app/.data
+      FAMILY_COOKIE_SECRET: ${FAMILY_COOKIE_SECRET:?Set FAMILY_COOKIE_SECRET in .env}
     ports:
-      - '8990:5173'
+      - "127.0.0.1:7878:4173"
+    volumes:
+      - /home/dev0/workspace/qwerty-learner-data:/app/.data
