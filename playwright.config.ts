@@ -36,12 +36,13 @@ export default defineConfig({
           use: { ...devices['Desktop Safari'] },
         },
       ],
-  webServer: isLocal && !process.env.PLAYWRIGHT_BASE_URL
-    ? {
-        command: 'npm run start:local-e2e',
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
-      }
-    : undefined,
+  webServer:
+    isLocal && !process.env.PLAYWRIGHT_BASE_URL
+      ? {
+          command: 'npm run start:local-e2e',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120 * 1000,
+        }
+      : undefined,
 })

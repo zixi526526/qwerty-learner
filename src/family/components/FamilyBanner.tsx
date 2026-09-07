@@ -1,5 +1,5 @@
-import ProfileManager from './ProfileManager'
 import { useFamily } from '../context'
+import ProfileManager from './ProfileManager'
 import { useState } from 'react'
 
 function formatDateTime(value: string | null) {
@@ -11,7 +11,7 @@ function formatDateTime(value: string | null) {
 }
 
 export default function FamilyBanner() {
-  const { activeProfile, lastSyncedAt, logout, runtimeMode } = useFamily()
+  const { activeProfile, isServerUnavailable, lastSyncedAt, logout } = useFamily()
   const [isManagerOpen, setIsManagerOpen] = useState(false)
 
   if (!activeProfile) {
@@ -24,7 +24,7 @@ export default function FamilyBanner() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-indigo-500 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white">
-              {runtimeMode === 'server' ? 'Server session' : 'Local preview'}
+              {isServerUnavailable ? 'Server unavailable' : 'Server session'}
             </span>
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               {activeProfile.displayName} · @{activeProfile.username}

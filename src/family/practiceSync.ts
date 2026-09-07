@@ -8,11 +8,16 @@ const practiceSyncContext: PracticeSyncContext = {
   enabled: false,
 }
 
-async function putPractice(payload: {
-  wordRecords?: IWordRecord[]
-  chapterRecords?: IChapterRecord[]
-  reviewRecords?: IReviewRecord[]
-}) {
+// `id` is this device's Dexie autoincrement key and means nothing anywhere else, so
+// it never goes over the wire. Records are matched by `recordId`.
+function withoutDeviceLocalId<T extends object>(records: T[] | undefined) {
+  return records?.map((record) => {
+    const { id: _deviceLocalId, ...rest } = record as T & { id?: number }
+    return rest
+  })
+}
+
+async function putPractice(payload: { wordRecords?: IWordRecord[]; chapterRecords?: IChapterRecord[]; reviewRecords?: IReviewRecord[] }) {
   if (!practiceSyncContext.enabled) {
     return
   }
@@ -24,7 +29,11 @@ async function putPractice(payload: {
       'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      wordRecords: withoutDeviceLocalId(payload.wordRecords),
+      chapterRecords: withoutDeviceLocalId(payload.chapterRecords),
+      reviewRecords: withoutDeviceLocalId(payload.reviewRecords),
+    }),
   })
 
   if (!response.ok) {

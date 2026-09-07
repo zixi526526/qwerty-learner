@@ -1,7 +1,7 @@
+import { atomWithProfileStorage } from './profileStorage'
 import type { ReviewRecord } from '@/utils/db/record'
 import { putWordReviewRecord } from '@/utils/db/review-record'
 import { atom } from 'jotai'
-import { atomWithProfileStorage } from './profileStorage'
 
 type TReviewInfoAtomData = {
   isReviewMode: boolean

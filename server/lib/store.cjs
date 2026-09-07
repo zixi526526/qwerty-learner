@@ -49,10 +49,7 @@ function ensureProfileDocs(db, profileId) {
 }
 
 function listProfiles(db) {
-  return db
-    .prepare('SELECT * FROM profiles ORDER BY LOWER(display_name) ASC, id ASC')
-    .all()
-    .map(mapProfile)
+  return db.prepare('SELECT * FROM profiles ORDER BY LOWER(display_name) ASC, id ASC').all().map(mapProfile)
 }
 
 function getProfileById(db, id) {
@@ -75,7 +72,7 @@ function createProfile(db, profileInput) {
         created_at,
         updated_at,
         last_seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)` ,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       profileInput.username,
@@ -136,7 +133,31 @@ function createSession(db, profileId) {
   return id
 }
 
-function getSession(db, sessionId) {
+// A session is the only thing standing between a household member and another
+// member's data, so an abandoned one must not stay valid forever.
+const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+function getSessionTtlMs(env = process.env) {
+  const configuredDays = Number(env.FAMILY_SESSION_TTL_DAYS)
+  if (Number.isFinite(configuredDays) && configuredDays > 0) {
+    return configuredDays * 24 * 60 * 60 * 1000
+  }
+
+  return DEFAULT_SESSION_TTL_MS
+}
+
+function isSessionExpired(lastSeenAt, ttlMs) {
+  const lastSeen = Date.parse(lastSeenAt)
+  if (!Number.isFinite(lastSeen)) return true
+  return Date.now() - lastSeen > ttlMs
+}
+
+function deleteExpiredSessions(db, ttlMs = getSessionTtlMs()) {
+  const cutoff = new Date(Date.now() - ttlMs).toISOString()
+  return db.prepare('DELETE FROM sessions WHERE last_seen_at < ?').run(cutoff).changes
+}
+
+function getSession(db, sessionId, { ttlMs = getSessionTtlMs() } = {}) {
   if (!sessionId) return null
   const row = db
     .prepare(
@@ -151,6 +172,11 @@ function getSession(db, sessionId) {
     .get(sessionId)
 
   if (!row) return null
+
+  if (isSessionExpired(row.last_seen_at, ttlMs)) {
+    destroySession(db, sessionId)
+    return null
+  }
 
   return {
     id: row.id,
@@ -170,9 +196,23 @@ function getSession(db, sessionId) {
   }
 }
 
-function touchSession(db, sessionId) {
+// Every request used to write a row here, including each static asset. Refresh only
+// once the stored value is actually stale so one page load stops costing dozens of
+// SQLite writes.
+const SESSION_TOUCH_INTERVAL_MS = 60 * 1000
+
+function touchSession(db, sessionId, lastSeenAt) {
+  if (lastSeenAt) {
+    const lastSeen = Date.parse(lastSeenAt)
+    if (Number.isFinite(lastSeen) && Date.now() - lastSeen < SESSION_TOUCH_INTERVAL_MS) {
+      return false
+    }
+  }
+
   const timestamp = nowIso()
   db.prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?').run(timestamp, sessionId)
+  db.prepare('UPDATE profiles SET last_seen_at = ? WHERE id = (SELECT profile_id FROM sessions WHERE id = ?)').run(timestamp, sessionId)
+  return true
 }
 
 function destroySession(db, sessionId) {
@@ -214,10 +254,12 @@ function saveDocument(db, tableName, profileId, baseRevision, payload, { force =
 }
 
 module.exports = {
+  DEFAULT_SESSION_TTL_MS,
   PROGRESS_TABLE,
   SETTINGS_TABLE,
   createProfile,
   createSession,
+  deleteExpiredSessions,
   deleteProfile,
   destroySession,
   exportProfileBundle,
@@ -225,6 +267,7 @@ module.exports = {
   getProfileById,
   getProfileByUsername,
   getSession,
+  getSessionTtlMs,
   listProfiles,
   saveDocument,
   touchSession,

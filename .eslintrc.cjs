@@ -53,5 +53,8 @@ module.exports = {
     'sort-imports': ['error', { ignoreDeclarationSort: true }],
     '@typescript-eslint/consistent-type-imports': 1,
     'react/prop-types': 'off',
+    // `const { id: _deviceLocalId, ...rest } = record` is how device-local keys are
+    // stripped before syncing; the discarded binding is the point.
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
   },
 }

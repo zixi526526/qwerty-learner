@@ -32,7 +32,9 @@ function sanitizeDisplayName(displayName, fallbackUsername) {
 }
 
 function sanitizeWelcomeMessage(welcomeMessage) {
-  return String(welcomeMessage ?? '').trim().slice(0, MAX_WELCOME_LENGTH)
+  return String(welcomeMessage ?? '')
+    .trim()
+    .slice(0, MAX_WELCOME_LENGTH)
 }
 
 module.exports = {

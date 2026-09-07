@@ -150,6 +150,7 @@ test('server flow supports session select, bootstrap, sync, export, and profile 
   const exportResponse = await app.inject({
     method: 'GET',
     url: `/api/profiles/${activeProfile.id}/export`,
+    cookies: { qwerty_family_session: sessionCookie.value },
   })
   assert.equal(exportResponse.statusCode, 200)
   const exportPayload = exportResponse.json()
@@ -170,9 +171,28 @@ test('server flow supports session select, bootstrap, sync, export, and profile 
   assert.equal(secondProfileResponse.statusCode, 201)
   const secondProfile = secondProfileResponse.json().profile
 
+  // Alice is signed in, so Bob's profile is out of reach even with the right confirmation.
+  const foreignDeleteResponse = await app.inject({
+    method: 'DELETE',
+    url: `/api/profiles/${secondProfile.id}`,
+    cookies: { qwerty_family_session: sessionCookie.value },
+    payload: { confirmationText: 'bob-verifier' },
+  })
+  assert.equal(foreignDeleteResponse.statusCode, 403)
+
+  const bobSelectResponse = await app.inject({
+    method: 'POST',
+    url: '/api/session/select',
+    payload: { username: 'bob-verifier' },
+  })
+  assert.equal(bobSelectResponse.statusCode, 200)
+  const bobCookie = bobSelectResponse.cookies.find((cookie) => cookie.name === 'qwerty_family_session')
+  assert.ok(bobCookie)
+
   const wrongDeleteResponse = await app.inject({
     method: 'DELETE',
     url: `/api/profiles/${secondProfile.id}`,
+    cookies: { qwerty_family_session: bobCookie.value },
     payload: { confirmationText: 'wrong' },
   })
   assert.equal(wrongDeleteResponse.statusCode, 400)
@@ -180,6 +200,7 @@ test('server flow supports session select, bootstrap, sync, export, and profile 
   const deleteResponse = await app.inject({
     method: 'DELETE',
     url: `/api/profiles/${secondProfile.id}`,
+    cookies: { qwerty_family_session: bobCookie.value },
     payload: { confirmationText: 'bob-verifier' },
   })
   assert.equal(deleteResponse.statusCode, 200)

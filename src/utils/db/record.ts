@@ -14,6 +14,8 @@ function getUpdatedAt() {
 }
 
 export interface IWordRecord {
+  // Dexie's autoincrement key. Device-local, so it is never synced.
+  id?: number
   recordId: string
   updatedAt: string
   word: string
@@ -64,6 +66,8 @@ export class WordRecord implements IWordRecord {
 }
 
 export interface IChapterRecord {
+  // Dexie's autoincrement key. Device-local, so it is never synced.
+  id?: number
   recordId: string
   updatedAt: string
   // 正常章节为 dictKey, 其他功能则为对应的类型

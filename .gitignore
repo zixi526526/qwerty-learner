@@ -11,6 +11,9 @@
 # production
 /build
 
+# self-hosted family server runtime data (SQLite + WAL)
+/.data
+
 # misc
 .DS_Store
 .env.local

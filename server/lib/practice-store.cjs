@@ -53,10 +53,12 @@ function upsertRecordsForTable(db, tableName, profileId, records) {
     return []
   }
 
+  // The conflict target is the composite (profile_id, record_id) key, so a record id
+  // owned by another profile can never be reached from here.
   const upsertStatement = db.prepare(
-    `INSERT INTO ${tableName} (record_id, profile_id, payload, updated_at)
+    `INSERT INTO ${tableName} (profile_id, record_id, payload, updated_at)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT(record_id) DO UPDATE SET
+     ON CONFLICT(profile_id, record_id) DO UPDATE SET
        payload = excluded.payload,
        updated_at = excluded.updated_at
      WHERE excluded.updated_at >= ${tableName}.updated_at`,
@@ -70,8 +72,13 @@ function upsertRecordsForTable(db, tableName, profileId, records) {
       continue
     }
 
-    upsertStatement.run(normalized.recordId, profileId, serializePayload(normalized), normalized.updatedAt)
-    acceptedRecords.push(normalized)
+    const result = upsertStatement.run(profileId, normalized.recordId, serializePayload(normalized), normalized.updatedAt)
+
+    // changes === 0 means a newer stored copy won the conflict, so the incoming
+    // record was not persisted and must not be reported back as accepted.
+    if (result.changes > 0) {
+      acceptedRecords.push(normalized)
+    }
   }
 
   return acceptedRecords
@@ -84,12 +91,15 @@ function normalizePracticeRecord(record) {
 
   const recordId = typeof record.recordId === 'string' ? record.recordId.trim() : ''
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : ''
-
   if (!recordId || !updatedAt) {
     return null
   }
 
-  return { ...record, recordId, updatedAt }
+  // `id` is the originating device's Dexie autoincrement key. Persisting it would
+  // hand every other device a primary key that collides with its own rows.
+  const { id: _deviceLocalId, ...deviceAgnosticRecord } = record
+
+  return { ...deviceAgnosticRecord, recordId, updatedAt }
 }
 
 module.exports = {

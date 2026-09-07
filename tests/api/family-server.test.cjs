@@ -63,25 +63,30 @@ test('profile management endpoints update, export, delete, and guard confirmatio
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  const created = await app.inject({ method: 'POST', url: '/api/profiles', payload: { username: 'FamilyBeta' } })
-  assert.equal(created.statusCode, 201)
+  const created = await app.inject({ method: 'POST', url: '/api/session/select', payload: { username: 'FamilyBeta' } })
+  assert.equal(created.statusCode, 200)
   const profileId = created.json().profile.id
+  const cookie = created.cookies.find((candidate) => candidate.name === 'qwerty_family_session')
+  assert.ok(cookie)
+  const cookies = { qwerty_family_session: cookie.value }
 
   const updated = await app.inject({
     method: 'PATCH',
     url: `/api/profiles/${profileId}`,
+    cookies,
     payload: { username: 'FamilyBeta', displayName: 'Beta', welcomeMessage: 'Hi Beta' },
   })
   assert.equal(updated.statusCode, 200)
   assert.equal(updated.json().profile.displayName, 'Beta')
 
-  const exported = await app.inject({ method: 'GET', url: `/api/profiles/${profileId}/export` })
+  const exported = await app.inject({ method: 'GET', url: `/api/profiles/${profileId}/export`, cookies })
   assert.equal(exported.statusCode, 200)
   assert.equal(exported.json().profile.id, profileId)
 
   const rejectedDelete = await app.inject({
     method: 'DELETE',
     url: `/api/profiles/${profileId}`,
+    cookies,
     payload: { confirmationText: 'wrong-name' },
   })
   assert.equal(rejectedDelete.statusCode, 400)
@@ -90,10 +95,63 @@ test('profile management endpoints update, export, delete, and guard confirmatio
   const deleted = await app.inject({
     method: 'DELETE',
     url: `/api/profiles/${profileId}`,
+    cookies,
     payload: { confirmationText: 'familybeta' },
   })
   assert.equal(deleted.statusCode, 200)
   assert.equal(deleted.json().ok, true)
+})
+
+test('profile management endpoints reject callers without a session for that profile', async (t) => {
+  const { app, root } = await createApp()
+  t.after(async () => {
+    await app.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const owner = await app.inject({ method: 'POST', url: '/api/session/select', payload: { username: 'owner' } })
+  const ownerId = owner.json().profile.id
+
+  const intruder = await app.inject({ method: 'POST', url: '/api/session/select', payload: { username: 'intruder' } })
+  const intruderCookie = intruder.cookies.find((candidate) => candidate.name === 'qwerty_family_session')
+  const intruderCookies = { qwerty_family_session: intruderCookie.value }
+
+  // No session at all.
+  assert.equal((await app.inject({ method: 'GET', url: `/api/profiles/${ownerId}/export` })).statusCode, 401)
+  assert.equal(
+    (await app.inject({ method: 'DELETE', url: `/api/profiles/${ownerId}`, payload: { confirmationText: 'owner' } })).statusCode,
+    401,
+  )
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/profiles/${ownerId}`, payload: { username: 'renamed' } })).statusCode, 401)
+
+  // Signed in, but as somebody else.
+  assert.equal((await app.inject({ method: 'GET', url: `/api/profiles/${ownerId}/export`, cookies: intruderCookies })).statusCode, 403)
+  assert.equal(
+    (
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/profiles/${ownerId}`,
+        cookies: intruderCookies,
+        payload: { confirmationText: 'owner' },
+      })
+    ).statusCode,
+    403,
+  )
+  assert.equal(
+    (
+      await app.inject({
+        method: 'PATCH',
+        url: `/api/profiles/${ownerId}`,
+        cookies: intruderCookies,
+        payload: { username: 'renamed' },
+      })
+    ).statusCode,
+    403,
+  )
+
+  // The owner's profile survived every attempt.
+  const list = await app.inject({ method: 'GET', url: '/api/profiles' })
+  assert.ok(list.json().profiles.some((profile) => profile.id === ownerId && profile.username === 'owner'))
 })
 
 test('sync APIs persist data, surface conflicts, and support explicit migration import', async (t) => {
@@ -174,7 +232,6 @@ test('sync APIs persist data, surface conflicts, and support explicit migration 
   assert.equal(imported.json().progress.payload.chapterRecords[0].chapter, 2)
   assert.equal(imported.json().practice.reviewRecords[0].recordId, 'review-imported')
 })
-
 
 test('unauthorized sync endpoints reject requests without a selected family profile', async (t) => {
   const { app, root } = await createApp()

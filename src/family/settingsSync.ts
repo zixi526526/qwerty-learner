@@ -15,8 +15,6 @@ type SettingsSyncContext = {
   retrying: boolean
 }
 
-const DEVICE_LOCAL_SETTING_KEYS = new Set(['dismissStartCardDate'])
-
 const SYNCED_SETTING_KEYS = [
   'currentDict',
   'currentChapter',
@@ -78,10 +76,6 @@ function readStorageValue(key: string, namespace: string) {
 
 function buildPayloadFromStorage(namespace: string) {
   return SYNCED_SETTING_KEYS.reduce<Record<string, unknown>>((payload, key) => {
-    if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
-      return payload
-    }
-
     const value = readStorageValue(key, namespace)
     if (value !== undefined) {
       payload[key] = value
@@ -104,9 +98,11 @@ async function putSettings(payload: SyncDocument) {
     }),
   })
 
-  const responsePayload = (await response.json().catch(() => null)) as
-    | { settings?: SyncDocument; current?: SyncDocument; error?: string }
-    | null
+  const responsePayload = (await response.json().catch(() => null)) as {
+    settings?: SyncDocument
+    current?: SyncDocument
+    error?: string
+  } | null
 
   if (response.status === 409 && responsePayload?.current) {
     const conflict = new Error(responsePayload.error || 'Settings conflict') as Error & { current?: SyncDocument }
@@ -159,7 +155,15 @@ async function flushSettingsSync() {
   }
 }
 
-export function configureSettingsSync({ enabled, namespace, settings }: { enabled: boolean; namespace: string | null; settings?: SyncDocument | null }) {
+export function configureSettingsSync({
+  enabled,
+  namespace,
+  settings,
+}: {
+  enabled: boolean
+  namespace: string | null
+  settings?: SyncDocument | null
+}) {
   settingsSyncContext.enabled = enabled
   settingsSyncContext.namespace = namespace
   settingsSyncContext.revision = settings?.revision ?? 0
@@ -179,10 +183,6 @@ export function hydrateSyncedSettings(namespace: string, payload: Record<string,
   settingsSyncContext.isHydrating = true
 
   for (const key of SYNCED_SETTING_KEYS) {
-    if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
-      continue
-    }
-
     const scopedKey = getProfileScopedStorageKey(key, namespace)
     if (key in payload) {
       window.localStorage.setItem(scopedKey, JSON.stringify(payload[key]))
@@ -201,10 +201,6 @@ export function queueSettingsSyncForKey(key: string) {
   }
 
   if (!SYNCED_SETTING_KEYS.includes(key as (typeof SYNCED_SETTING_KEYS)[number])) {
-    return
-  }
-
-  if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
     return
   }
 

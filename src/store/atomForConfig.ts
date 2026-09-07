@@ -1,8 +1,8 @@
+import { atomWithProfileStorage } from './profileStorage'
+import { createProfileScopedStorage } from '@/family/storage'
 import type { WritableAtom } from 'jotai'
 import { atom } from 'jotai'
 import type { RESET } from 'jotai/vanilla/utils/constants'
-import { createProfileScopedStorage } from '@/family/storage'
-import { atomWithProfileStorage } from './profileStorage'
 
 type SetStateActionWithReset<Value> = Value | typeof RESET | ((prev: Value) => Value | typeof RESET)
 

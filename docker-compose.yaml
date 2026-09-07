@@ -11,6 +11,9 @@ services:
       QL_DATA_DIR: /app/.data
       FAMILY_COOKIE_SECRET: ${FAMILY_COOKIE_SECRET:?Set FAMILY_COOKIE_SECRET in .env}
     ports:
-      - "127.0.0.1:7878:4173"
+      - '127.0.0.1:7878:4173'
     volumes:
-      - /home/dev0/workspace/qwerty-learner-data:/app/.data
+      # Host path for the SQLite database. Override QL_DATA_PATH in .env to keep an
+      # existing data directory; the container runs as uid 1000, so that directory
+      # must be owned by uid 1000 (sudo chown -R 1000:1000 <path>).
+      - ${QL_DATA_PATH:-./data}:/app/.data

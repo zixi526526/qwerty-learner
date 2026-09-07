@@ -60,13 +60,25 @@ export async function generateNewWordReviewRecord(dictID: string, errorData: TEr
 
   const record = new ReviewRecord(dictID, sortedWords)
 
-  await syncReviewRecord(record)
+  // Local write first: syncing first meant a server hiccup threw before the record
+  // ever reached IndexedDB, losing it on both sides.
   await db.reviewRecords.put(record)
+  await syncReviewRecordQuietly(record)
   return record
 }
 
 export async function putWordReviewRecord(record: ReviewRecord) {
   record.updatedAt = new Date().toISOString()
-  await syncReviewRecord(record)
   await db.reviewRecords.put(record)
+  await syncReviewRecordQuietly(record)
+}
+
+// A failed sync must not fail the local save; the next bootstrap merge pushes the
+// record up instead.
+async function syncReviewRecordQuietly(record: ReviewRecord) {
+  try {
+    await syncReviewRecord(record)
+  } catch (error) {
+    console.error(error)
+  }
 }

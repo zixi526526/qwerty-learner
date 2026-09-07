@@ -1,3 +1,4 @@
+import { configurePracticeSync, syncPracticeBatch } from './practiceSync'
 import {
   createFamilyProfile,
   deleteFamilyProfile,
@@ -7,12 +8,11 @@ import {
   selectFamilyProfile,
   updateFamilyProfile,
 } from './service'
-import type { CreateFamilyProfileInput, FamilyBootstrap, FamilyProfile, FamilyRuntimeMode, UpdateFamilyProfileInput } from './service'
-import { configurePracticeSync } from './practiceSync'
+import type { CreateFamilyProfileInput, FamilyBootstrap, FamilyProfile, UpdateFamilyProfileInput } from './service'
 import { configureSettingsSync, hydrateSyncedSettings } from './settingsSync'
 import { normalizeProfileUsername, setActiveProfileNamespace } from './storage'
 import { migrateLegacyStorageToProfile } from '@/store/profileStorage'
-import { clearLegacyGuestDb, replacePracticeSnapshot, setActiveDbNamespace } from '@/utils/db'
+import { adoptLegacyGuestDb, mergePracticeSnapshot, practiceSnapshotSize, setActiveDbNamespace } from '@/utils/db'
 import type { PropsWithChildren } from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
@@ -23,7 +23,6 @@ type FamilyContextValue = {
   lastSyncedAt: string | null
   profileStoreKey: string
   profiles: FamilyProfile[]
-  runtimeMode: FamilyRuntimeMode
   isServerUnavailable: boolean
   createProfile: (input: CreateFamilyProfileInput) => Promise<void>
   deleteProfile: (profileId: string, confirmationText?: string) => Promise<void>
@@ -39,7 +38,6 @@ const FamilyContext = createContext<FamilyContextValue | null>(null)
 export function FamilyProvider({ children }: PropsWithChildren) {
   const [profiles, setProfiles] = useState<FamilyProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<FamilyProfile | null>(null)
-  const [runtimeMode, setRuntimeMode] = useState<FamilyRuntimeMode>('local')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
@@ -56,23 +54,38 @@ export function FamilyProvider({ children }: PropsWithChildren) {
     }
   }, [])
 
-  const applyServerBootstrap = useCallback(
-    async (profile: FamilyProfile | null, bootstrap: FamilyBootstrap | null) => {
-      if (!profile || !bootstrap) {
-        configureSettingsSync({ enabled: false, namespace: null, settings: null })
-        configurePracticeSync(false)
-        return
-      }
+  const applyServerBootstrap = useCallback(async (profile: FamilyProfile | null, bootstrap: FamilyBootstrap | null) => {
+    if (!profile || !bootstrap) {
+      configureSettingsSync({ enabled: false, namespace: null, settings: null })
+      configurePracticeSync(false)
+      return
+    }
 
-      const namespace = normalizeProfileUsername(profile.username)
-      hydrateSyncedSettings(namespace, bootstrap.settings.payload)
-      await replacePracticeSnapshot(bootstrap.practice)
-      await clearLegacyGuestDb()
-      configureSettingsSync({ enabled: true, namespace, settings: bootstrap.settings })
-      configurePracticeSync(true)
-    },
-    [],
-  )
+    const namespace = normalizeProfileUsername(profile.username)
+    hydrateSyncedSettings(namespace, bootstrap.settings.payload)
+
+    // Take over any pre-profile history first, so the merge below treats it as
+    // local-only work that still has to reach the server.
+    const legacySnapshot = await adoptLegacyGuestDb()
+    if (legacySnapshot) {
+      await mergePracticeSnapshot(legacySnapshot)
+    }
+
+    const pendingUploads = await mergePracticeSnapshot(bootstrap.practice)
+
+    configureSettingsSync({ enabled: true, namespace, settings: bootstrap.settings })
+    configurePracticeSync(true)
+
+    // Records this device made while the server was unreachable, or mid-chapter,
+    // are pushed up now instead of being silently discarded.
+    if (practiceSnapshotSize(pendingUploads) > 0) {
+      try {
+        await syncPracticeBatch(pendingUploads)
+      } catch (error) {
+        console.error('Failed to push locally pending practice records', error)
+      }
+    }
+  }, [])
 
   const refresh = useCallback(async () => {
     setIsLoading(true)
@@ -84,7 +97,6 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       await applyServerBootstrap(snapshot.activeProfile, snapshot.bootstrap)
       setProfiles(snapshot.profiles)
       setActiveProfile(snapshot.activeProfile)
-      setRuntimeMode(snapshot.runtimeMode)
       setLastSyncedAt(snapshot.lastSyncedAt)
       setIsServerUnavailable(false)
       setStoreEpoch((previous) => previous + 1)
@@ -112,17 +124,19 @@ export function FamilyProvider({ children }: PropsWithChildren) {
         throw new Error('Family server is unavailable')
       }
       setError(null)
-      const selection = await selectFamilyProfile(runtimeMode, profile)
+      const selection = await selectFamilyProfile(profile)
       applyProfileStorageNamespace(selection.activeProfile)
       await applyServerBootstrap(selection.activeProfile, selection.bootstrap)
       setActiveProfile(selection.activeProfile)
       setLastSyncedAt(selection.lastSyncedAt)
       setStoreEpoch((previous) => previous + 1)
       setProfiles((currentProfiles) =>
-        currentProfiles.map((candidate) => (selection.activeProfile && candidate.id === selection.activeProfile.id ? selection.activeProfile : candidate)),
+        currentProfiles.map((candidate) =>
+          selection.activeProfile && candidate.id === selection.activeProfile.id ? selection.activeProfile : candidate,
+        ),
       )
     },
-    [applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable, runtimeMode],
+    [applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable],
   )
 
   const createProfile = useCallback(
@@ -131,7 +145,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
         throw new Error('Family server is unavailable')
       }
       setError(null)
-      const createdProfile = await createFamilyProfile(runtimeMode, input)
+      const createdProfile = await createFamilyProfile(input)
       if (!createdProfile) {
         throw new Error('Unable to create profile')
       }
@@ -139,7 +153,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       setProfiles((currentProfiles) => [createdProfile, ...currentProfiles.filter((candidate) => candidate.id !== createdProfile.id)])
       await selectProfile(createdProfile)
     },
-    [isServerUnavailable, runtimeMode, selectProfile],
+    [isServerUnavailable, selectProfile],
   )
 
   const updateProfileEntry = useCallback(
@@ -148,7 +162,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
         throw new Error('Family server is unavailable')
       }
       setError(null)
-      const updatedProfile = await updateFamilyProfile(runtimeMode, profileId, input)
+      const updatedProfile = await updateFamilyProfile(profileId, input)
       if (!updatedProfile) {
         throw new Error('Unable to update profile')
       }
@@ -156,7 +170,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       setProfiles((currentProfiles) => currentProfiles.map((candidate) => (candidate.id === profileId ? updatedProfile : candidate)))
       setActiveProfile((currentProfile) => (currentProfile?.id === profileId ? updatedProfile : currentProfile))
     },
-    [isServerUnavailable, runtimeMode],
+    [isServerUnavailable],
   )
 
   const deleteProfileEntry = useCallback(
@@ -167,7 +181,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       setError(null)
       const isDeletingActiveProfile = activeProfile?.id === profileId
 
-      await deleteFamilyProfile(runtimeMode, profileId, confirmationText)
+      await deleteFamilyProfile(profileId, confirmationText)
       setProfiles((currentProfiles) => currentProfiles.filter((candidate) => candidate.id !== profileId))
 
       if (isDeletingActiveProfile) {
@@ -178,7 +192,7 @@ export function FamilyProvider({ children }: PropsWithChildren) {
         setStoreEpoch((previous) => previous + 1)
       }
     },
-    [activeProfile?.id, applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable, runtimeMode],
+    [activeProfile?.id, applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable],
   )
 
   const exportProfileEntry = useCallback(
@@ -187,9 +201,9 @@ export function FamilyProvider({ children }: PropsWithChildren) {
         throw new Error('Family server is unavailable')
       }
       setError(null)
-      await exportFamilyProfile(runtimeMode, profile)
+      await exportFamilyProfile(profile)
     },
-    [isServerUnavailable, runtimeMode],
+    [isServerUnavailable],
   )
 
   const logout = useCallback(async () => {
@@ -197,13 +211,13 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       throw new Error('Family server is unavailable')
     }
     setError(null)
-    await logoutFamilyProfile(runtimeMode)
+    await logoutFamilyProfile()
     applyProfileStorageNamespace(null)
     await applyServerBootstrap(null, null)
     setActiveProfile(null)
     setLastSyncedAt(null)
     setStoreEpoch((previous) => previous + 1)
-  }, [applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable, runtimeMode])
+  }, [applyProfileStorageNamespace, applyServerBootstrap, isServerUnavailable])
 
   const value = useMemo<FamilyContextValue>(() => {
     const profileStoreKey = `${activeProfile ? normalizeProfileUsername(activeProfile.username) : 'guest'}:${storeEpoch}`
@@ -215,7 +229,6 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       lastSyncedAt,
       profileStoreKey,
       profiles,
-      runtimeMode,
       isServerUnavailable,
       createProfile,
       deleteProfile: deleteProfileEntry,
@@ -225,7 +238,22 @@ export function FamilyProvider({ children }: PropsWithChildren) {
       selectProfile,
       updateProfile: updateProfileEntry,
     }
-  }, [activeProfile, createProfile, deleteProfileEntry, error, exportProfileEntry, isLoading, isServerUnavailable, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, storeEpoch, updateProfileEntry])
+  }, [
+    activeProfile,
+    createProfile,
+    deleteProfileEntry,
+    error,
+    exportProfileEntry,
+    isLoading,
+    isServerUnavailable,
+    lastSyncedAt,
+    logout,
+    profiles,
+    refresh,
+    selectProfile,
+    storeEpoch,
+    updateProfileEntry,
+  ])
 
   return <FamilyContext.Provider value={value}>{children}</FamilyContext.Provider>
 }

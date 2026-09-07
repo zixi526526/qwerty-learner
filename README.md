@@ -58,6 +58,11 @@ GitHub Pages: <https://realkai42.github.io/qwerty-learner/>
 1. 更新 `Vercel Build & Development Settings` -> `Output Directory`："build"
 2. Click Deploy Button
 
+### 自托管家庭模式（Node + SQLite）
+
+支持多用户档案、跨设备同步设置与练习记录的自托管部署（Docker / systemd），
+详见 [docs/self-host-family.md](docs/self-host-family.md)。
+
 <br />
 
 ## ✨ 设计思想

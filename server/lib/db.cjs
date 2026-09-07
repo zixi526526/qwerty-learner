@@ -42,7 +42,12 @@ function runMigrations(db, migrationsPath) {
     .filter((file) => file.endsWith('.sql'))
     .sort()
 
-  const alreadyApplied = new Set(db.prepare('SELECT filename FROM schema_migrations').all().map((row) => row.filename))
+  const alreadyApplied = new Set(
+    db
+      .prepare('SELECT filename FROM schema_migrations')
+      .all()
+      .map((row) => row.filename),
+  )
 
   for (const file of files) {
     if (alreadyApplied.has(file)) continue

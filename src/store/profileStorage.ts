@@ -1,5 +1,5 @@
-import { createProfileScopedStorage, getProfileScopedStorageKey } from '@/family/storage'
 import { queueSettingsSyncForKey } from '@/family/settingsSync'
+import { createProfileScopedStorage, getProfileScopedStorageKey } from '@/family/storage'
 import { atomWithStorage } from 'jotai/utils'
 
 function isBrowser() {

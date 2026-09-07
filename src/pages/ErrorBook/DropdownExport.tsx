@@ -1,6 +1,6 @@
 import type { groupedWordRecords } from './type'
-import type { Word } from '@/typings'
 import { idDictionaryMap } from '@/resources/dictionary'
+import type { Word } from '@/typings'
 import { wordListFetcher } from '@/utils/wordListFetcher'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { saveAs } from 'file-saver'
@@ -54,7 +54,7 @@ const DropdownExport: FC<DropdownProps> = ({ renderRecords }) => {
           return [url, await wordListFetcher(url)] as const
         } catch (error) {
           console.error(`Failed to fetch dictionary data from ${url}:`, error)
-          return [url, []] as const
+          return [url, [] as Word[]] as const
         }
       })
 

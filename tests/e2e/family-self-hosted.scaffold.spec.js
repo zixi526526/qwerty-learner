@@ -1,8 +1,6 @@
 const { test, expect } = require('@playwright/test')
 
-const pendingScenarios = [
-  'legacy local-only migration into the chosen profile',
-]
+const pendingScenarios = ['legacy local-only migration into the chosen profile']
 
 test.describe('Family multi-user verification scaffold', () => {
   async function ensureProfileFormVisible(page) {
@@ -18,7 +16,6 @@ test.describe('Family multi-user verification scaffold', () => {
 
     await expect(usernameInput).toBeVisible({ timeout: 15000 })
   }
-
 
   async function clickButtonByName(page, namePattern) {
     await page.getByRole('button', { name: namePattern }).evaluate((button) => {
@@ -37,8 +34,7 @@ test.describe('Family multi-user verification scaffold', () => {
         if (!response.ok) return false
         const payload = await response.json()
         return (
-          payload?.settings?.payload?.currentDict === currentDict &&
-          payload?.settings?.payload?.isOpenDarkModeAtom === isOpenDarkModeAtom
+          payload?.settings?.payload?.currentDict === currentDict && payload?.settings?.payload?.isOpenDarkModeAtom === isOpenDarkModeAtom
         )
       },
       expected,
@@ -184,47 +180,50 @@ test.describe('Family multi-user verification scaffold', () => {
     await pageA.getByLabel('Welcome message').fill('Practice should sync too')
     await clickButtonByName(pageA, /create and select/i)
 
-    await pageA.evaluate(async ({ syncedWord }) => {
-      await fetch('/api/sync/practice', {
-        method: 'PUT',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          wordRecords: [
-            {
-              recordId: `word-${syncedWord}`,
-              updatedAt: new Date().toISOString(),
-              word: syncedWord,
-              timeStamp: Math.floor(Date.now() / 1000),
-              dict: 'cet4',
-              chapter: 0,
-              timing: [120, 110],
-              wrongCount: 2,
-              mistakes: { 0: ['q'] },
-            },
-          ],
-          chapterRecords: [
-            {
-              recordId: `chapter-${syncedWord}`,
-              updatedAt: new Date().toISOString(),
-              dict: 'cet4',
-              chapter: 0,
-              timeStamp: Math.floor(Date.now() / 1000),
-              time: 30,
-              correctCount: 18,
-              wrongCount: 2,
-              wordCount: 20,
-              correctWordIndexes: [0, 1, 2],
-              wordNumber: 20,
-              wordRecordIds: [],
-            },
-          ],
-        }),
-      })
-    }, { syncedWord })
+    await pageA.evaluate(
+      async ({ syncedWord }) => {
+        await fetch('/api/sync/practice', {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            wordRecords: [
+              {
+                recordId: `word-${syncedWord}`,
+                updatedAt: new Date().toISOString(),
+                word: syncedWord,
+                timeStamp: Math.floor(Date.now() / 1000),
+                dict: 'cet4',
+                chapter: 0,
+                timing: [120, 110],
+                wrongCount: 2,
+                mistakes: { 0: ['q'] },
+              },
+            ],
+            chapterRecords: [
+              {
+                recordId: `chapter-${syncedWord}`,
+                updatedAt: new Date().toISOString(),
+                dict: 'cet4',
+                chapter: 0,
+                timeStamp: Math.floor(Date.now() / 1000),
+                time: 30,
+                correctCount: 18,
+                wrongCount: 2,
+                wordCount: 20,
+                correctWordIndexes: [0, 1, 2],
+                wordNumber: 20,
+                wordRecordIds: [],
+              },
+            ],
+          }),
+        })
+      },
+      { syncedWord },
+    )
 
     const contextB = await browser.newContext({ viewport: { width: 1440, height: 1600 }, colorScheme: 'light' })
     const pageB = await contextB.newPage()
@@ -391,47 +390,50 @@ test.describe('Family multi-user verification scaffold', () => {
     await page.getByLabel('Welcome message').fill('Pages should all load')
     await clickButtonByName(page, /create and select/i)
 
-    await page.evaluate(async ({ syncedWord }) => {
-      await fetch('/api/sync/practice', {
-        method: 'PUT',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          wordRecords: [
-            {
-              recordId: `word-${syncedWord}`,
-              updatedAt: new Date().toISOString(),
-              word: syncedWord,
-              timeStamp: Math.floor(Date.now() / 1000),
-              dict: 'cet4',
-              chapter: 0,
-              timing: [120, 110],
-              wrongCount: 2,
-              mistakes: { 0: ['q'] },
-            },
-          ],
-          chapterRecords: [
-            {
-              recordId: `chapter-${syncedWord}`,
-              updatedAt: new Date().toISOString(),
-              dict: 'cet4',
-              chapter: 0,
-              timeStamp: Math.floor(Date.now() / 1000),
-              time: 30,
-              correctCount: 18,
-              wrongCount: 2,
-              wordCount: 20,
-              correctWordIndexes: [0, 1, 2],
-              wordNumber: 20,
-              wordRecordIds: [],
-            },
-          ],
-        }),
-      })
-    }, { syncedWord })
+    await page.evaluate(
+      async ({ syncedWord }) => {
+        await fetch('/api/sync/practice', {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            wordRecords: [
+              {
+                recordId: `word-${syncedWord}`,
+                updatedAt: new Date().toISOString(),
+                word: syncedWord,
+                timeStamp: Math.floor(Date.now() / 1000),
+                dict: 'cet4',
+                chapter: 0,
+                timing: [120, 110],
+                wrongCount: 2,
+                mistakes: { 0: ['q'] },
+              },
+            ],
+            chapterRecords: [
+              {
+                recordId: `chapter-${syncedWord}`,
+                updatedAt: new Date().toISOString(),
+                dict: 'cet4',
+                chapter: 0,
+                timeStamp: Math.floor(Date.now() / 1000),
+                time: 30,
+                correctCount: 18,
+                wrongCount: 2,
+                wordCount: 20,
+                correctWordIndexes: [0, 1, 2],
+                wordNumber: 20,
+                wordRecordIds: [],
+              },
+            ],
+          }),
+        })
+      },
+      { syncedWord },
+    )
 
     await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('link', { name: /CET-4/i })).toBeVisible()

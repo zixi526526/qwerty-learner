@@ -1,6 +1,6 @@
 import atomForConfig from './atomForConfig'
-import { reviewInfoAtom } from './reviewInfoAtom'
 import { atomWithProfileStorage } from './profileStorage'
+import { reviewInfoAtom } from './reviewInfoAtom'
 import { DISMISS_START_CARD_DATE_KEY, defaultFontSizeConfig } from '@/constants'
 import { idDictionaryMap } from '@/resources/dictionary'
 import { correctSoundResources, keySoundResources, wrongSoundResources } from '@/resources/soundResource'

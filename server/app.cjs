@@ -10,47 +10,83 @@ const {
   createProfile,
   createSession,
   deleteProfile,
+  deleteExpiredSessions,
   destroySession,
   exportProfileBundle,
   getDocument,
   getProfileById,
   getProfileByUsername,
   getSession,
+  getSessionTtlMs,
   listProfiles,
   saveDocument,
   touchSession,
   updateProfile,
 } = require('./lib/store.cjs')
 const { listPracticeRecords, upsertPracticeRecords } = require('./lib/practice-store.cjs')
-const {
-  sanitizeDisplayName,
-  sanitizeWelcomeMessage,
-  validateUsername,
-} = require('./lib/validation.cjs')
+const { sanitizeDisplayName, sanitizeWelcomeMessage, validateUsername } = require('./lib/validation.cjs')
 
 const COOKIE_NAME = 'qwerty_family_session'
 
+// The repo root, resolved from this file rather than from the working directory, so
+// migrations and static assets are found no matter where the process was started.
+const PROJECT_ROOT = path.join(__dirname, '..')
+
+// A full local history import ships every practice record in one request and blows
+// straight past Fastify's 1MB default.
+const DEFAULT_BODY_LIMIT_BYTES = 32 * 1024 * 1024
+
+// Expired rows only need sweeping now and then, not on every single request.
+const SESSION_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+
+function resolveCookieSecret(env) {
+  const configured = env.FAMILY_COOKIE_SECRET
+  if (configured) return configured
+
+  if (env.NODE_ENV === 'production') {
+    throw new Error('FAMILY_COOKIE_SECRET must be set when NODE_ENV=production.')
+  }
+
+  return 'dev-family-secret-change-me'
+}
+
 function buildApp(options = {}) {
-  const db = options.db || openDatabase(options.env)
   const env = options.env || process.env
-  const buildDir = path.join(process.cwd(), 'build')
-  const publicDir = path.join(process.cwd(), 'public')
-  const app = Fastify({ logger: options.logger ?? false })
+  const db = options.db || openDatabase(env)
+  const buildDir = path.join(PROJECT_ROOT, 'build')
+  const publicDir = path.join(PROJECT_ROOT, 'public')
+  const sessionTtlMs = getSessionTtlMs(env)
+  const app = Fastify({
+    logger: options.logger ?? false,
+    bodyLimit: Number(env.FAMILY_BODY_LIMIT_BYTES) || DEFAULT_BODY_LIMIT_BYTES,
+  })
 
   app.register(fastifyCookie, {
-    secret: env.FAMILY_COOKIE_SECRET || 'dev-family-secret-change-me',
+    secret: resolveCookieSecret(env),
   })
 
   app.decorate('familyDb', db)
 
   app.decorateRequest('familySession', null)
 
+  deleteExpiredSessions(db, sessionTtlMs)
+  let lastSessionSweepAt = Date.now()
+
   app.addHook('onRequest', async (request) => {
+    // Static asset and SPA fallback requests never read the session, and touching it
+    // for each of them turned one page load into dozens of SQLite writes.
+    if (!request.url.startsWith('/api/')) return
+
+    if (Date.now() - lastSessionSweepAt > SESSION_SWEEP_INTERVAL_MS) {
+      lastSessionSweepAt = Date.now()
+      deleteExpiredSessions(db, sessionTtlMs)
+    }
+
     const sessionId = request.cookies[COOKIE_NAME]
     if (!sessionId) return
-    const session = getSession(db, sessionId)
+    const session = getSession(db, sessionId, { ttlMs: sessionTtlMs })
     if (!session) return
-    touchSession(db, sessionId)
+    touchSession(db, sessionId, session.lastSeenAt)
     request.familySession = session
   })
 
@@ -86,12 +122,14 @@ function buildApp(options = {}) {
   })
 
   app.patch('/api/profiles/:id', async (request, reply) => {
+    if (!requireOwnProfile(request, reply, request.params.id)) return
+
     const validation = validateUsername(request.body?.username)
     if (!validation.ok) {
       return reply.status(400).send({ error: validation.message })
     }
 
-    const profile = updateProfile(db, Number(request.params.id), {
+    const profile = updateProfile(db, parseProfileId(request.params.id), {
       username: validation.trimmed,
       normalizedUsername: validation.normalized,
       displayName: sanitizeDisplayName(request.body?.displayName, validation.trimmed),
@@ -106,7 +144,9 @@ function buildApp(options = {}) {
   })
 
   app.get('/api/profiles/:id/export', async (request, reply) => {
-    const bundle = exportProfileBundle(db, Number(request.params.id))
+    if (!requireOwnProfile(request, reply, request.params.id)) return
+
+    const bundle = exportProfileBundle(db, parseProfileId(request.params.id))
     if (!bundle) {
       return reply.status(404).send({ error: 'Profile not found.' })
     }
@@ -118,12 +158,16 @@ function buildApp(options = {}) {
   })
 
   app.delete('/api/profiles/:id', async (request, reply) => {
-    const profile = getProfileById(db, Number(request.params.id))
+    if (!requireOwnProfile(request, reply, request.params.id)) return
+
+    const profile = getProfileById(db, parseProfileId(request.params.id))
     if (!profile) {
       return reply.status(404).send({ error: 'Profile not found.' })
     }
 
-    const confirmationText = String(request.body?.confirmationText ?? '').trim().toLowerCase()
+    const confirmationText = String(request.body?.confirmationText ?? '')
+      .trim()
+      .toLowerCase()
     if (confirmationText !== profile.normalizedUsername) {
       return reply.status(400).send({ error: `Type ${profile.username} to confirm deletion.` })
     }
@@ -278,6 +322,27 @@ function requireSession(request, reply) {
     reply.status(401).send({ error: 'Select a family profile first.' })
     return null
   }
+  return profile
+}
+
+function parseProfileId(rawId) {
+  const parsed = Number.parseInt(String(rawId), 10)
+  return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+// Exporting, renaming and deleting all reach a profile's full history, so they are
+// restricted to the profile the caller is currently signed in as. Without this any
+// device on the network could download or destroy another member's data.
+function requireOwnProfile(request, reply, rawId) {
+  const profile = requireSession(request, reply)
+  if (!profile) return null
+
+  const profileId = parseProfileId(rawId)
+  if (profileId === null || profile.id !== profileId) {
+    reply.status(403).send({ error: 'Switch to this profile before managing it.' })
+    return null
+  }
+
   return profile
 }
 

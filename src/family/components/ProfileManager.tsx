@@ -17,8 +17,21 @@ type ProfileManagerProps = {
 }
 
 export default function ProfileManager({ onClose, showCloseButton = false }: ProfileManagerProps) {
-  const { activeProfile, createProfile, deleteProfile, error, exportProfile, isLoading, isServerUnavailable, lastSyncedAt, logout, profiles, refresh, runtimeMode, selectProfile, updateProfile } =
-    useFamily()
+  const {
+    activeProfile,
+    createProfile,
+    deleteProfile,
+    error,
+    exportProfile,
+    isLoading,
+    isServerUnavailable,
+    lastSyncedAt,
+    logout,
+    profiles,
+    refresh,
+    selectProfile,
+    updateProfile,
+  } = useFamily()
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
@@ -26,7 +39,7 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
   const [pending, setPending] = useState(false)
 
   const activeProfileId = activeProfile?.id
-  const statusLabel = runtimeMode === 'server' ? 'Synced with the family server' : 'Server unavailable'
+  const statusLabel = isServerUnavailable ? 'Server unavailable' : 'Synced with the family server'
   const subtitle = useMemo(() => {
     if (!lastSyncedAt) {
       return statusLabel
@@ -109,7 +122,8 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
             {activeProfile ? `Welcome back, ${activeProfile.displayName}` : 'Choose a family profile'}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-            Family profiles now use the server as the source of truth. Settings and practice history follow each user across devices, while popup hints stay local to this browser.
+            Family profiles now use the server as the source of truth. Settings and practice history follow each user across devices, while
+            popup hints stay local to this browser.
           </p>
           <p className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">{subtitle}</p>
         </div>
@@ -118,12 +132,21 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
             Refresh
           </button>
           {activeProfile && (
-            <button className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200" type="button" onClick={() => void logout()} disabled={pending}>
+            <button
+              className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+              type="button"
+              onClick={() => void logout()}
+              disabled={pending}
+            >
               Logout
             </button>
           )}
           {showCloseButton && (
-            <button className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200" type="button" onClick={onClose}>
+            <button
+              className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+              type="button"
+              onClick={onClose}
+            >
               Close
             </button>
           )}
@@ -224,34 +247,44 @@ export default function ProfileManager({ onClose, showCloseButton = false }: Pro
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {!isActive && (
-                          <button className="my-btn-primary" type="button" disabled={isInteractionBlocked} onClick={() => void selectProfile(profile)}>
+                          <button
+                            className="my-btn-primary"
+                            type="button"
+                            disabled={isInteractionBlocked}
+                            onClick={() => void selectProfile(profile)}
+                          >
                             Switch
                           </button>
                         )}
-                        <button
-                          className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
-                          type="button"
-                          disabled={isInteractionBlocked}
-                          onClick={() => void exportProfile(profile)}
-                        >
-                          Export
-                        </button>
-                        <button
-                          className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
-                          type="button"
-                          disabled={isInteractionBlocked}
-                          onClick={() => startEditing(profile)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 dark:border-red-800 dark:text-red-300"
-                          type="button"
-                          disabled={isInteractionBlocked}
-                          onClick={() => void handleDelete(profile)}
-                        >
-                          Delete
-                        </button>
+                        {/* Managing a profile is scoped to the one you are signed in as; the server enforces the same rule. */}
+                        {isActive && (
+                          <>
+                            <button
+                              className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+                              type="button"
+                              disabled={isInteractionBlocked}
+                              onClick={() => void exportProfile(profile)}
+                            >
+                              Export
+                            </button>
+                            <button
+                              className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+                              type="button"
+                              disabled={isInteractionBlocked}
+                              onClick={() => startEditing(profile)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 dark:border-red-800 dark:text-red-300"
+                              type="button"
+                              disabled={isInteractionBlocked}
+                              onClick={() => void handleDelete(profile)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
