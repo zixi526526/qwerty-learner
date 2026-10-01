@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# vps-manager pre-push delegate: Husky's core.hooksPath hides .git/hooks, so
+# run the machine-local pre-push hook installed by vps-manager
+# (Invoke-WorkspaceSync.py --install-hooks), which scans the commits being
+# pushed for secrets. Machines without that hook skip this step.
+hook="$(git rev-parse --absolute-git-dir)/hooks/pre-push"
+if [ -f "$hook" ]; then
+  exec sh "$hook" "$@"
+fi
