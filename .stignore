@@ -1,0 +1,4 @@
+// zixi-sync ownership boundary: all project content is Git-owned or local-only.
+// No Syncthing-owned payload is registered for this repository.
+// Never sync .git, build output, dependencies or machine-local configuration.
+*
