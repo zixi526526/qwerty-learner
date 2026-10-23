@@ -38,3 +38,6 @@ stats.html
 /playwright/.cache/
 playwright-report
 .omx/
+
+# Rebuildable pytest caches; local-only at every directory depth.
+.pytest_cache/
