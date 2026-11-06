@@ -1,38 +1,32 @@
-# 定义函数
-function Test-CommandInstalled([string]$CommandName) {
-    $command = Get-Command $CommandName -ErrorAction SilentlyContinue
-    if ($command) {
-        return $true
+param(
+    [ValidateSet('family', 'dev')]
+    [string]$Mode = 'family'
+)
+
+$ErrorActionPreference = 'Stop'
+$location = Get-Location
+try {
+    Set-Location (Join-Path $PSScriptRoot '..')
+    if (!(Get-Command node -ErrorAction SilentlyContinue) -or !(Get-Command npm -ErrorAction SilentlyContinue)) {
+        throw '请先安装 Node.js 20（含 npm），然后重新运行本脚本。'
+    }
+
+    npm install
+    if ($LASTEXITCODE -ne 0) { throw '依赖安装失败' }
+    if ($Mode -eq 'dev') {
+        Write-Host '启动 Vite 开发服务，请打开 http://localhost:5173/（以 Vite 输出为准）'
+        npm run dev
+        if ($LASTEXITCODE -ne 0) { throw '开发服务启动失败' }
     }
     else {
-        return $false
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+        $port = if ($env:PORT) { $env:PORT } else { '4173' }
+        Write-Host "启动家庭服务，请在服务就绪后打开 http://localhost:$port/"
+        npm run start
+        if ($LASTEXITCODE -ne 0) { throw '家庭服务启动失败' }
     }
 }
-
-$location = Get-Location
-
-# 检测Node命令是否存在
-if (!(Test-CommandInstalled node)) {
-    Write-Host "未检测到nodejs环境，尝试使用winget安装..."
-    # 检测winget是否存在
-    if (!(Test-CommandInstalled winget)) {
-        Write-Host "未检测到winget，无法完成安装，请检测系统版本，或尝试安装winget:https://www.microsoft.com/p/app-installer/9nblggh4nns1#activetab=pivot:overviewtab"
-    }
-    else {
-        winget install OpenJS.Nodejs --silent
-        Write-Host "nodejs 安装完成"
-    }
-}else{
-    Write-Host "已安装nodejs!"
-    Set-Location ..
-    Write-Host "开始安装依赖..."
-    yarn install --registry=https://registry.npm.taobao.org
-    Write-Host "依赖安装完成，启动程序..."
-    
-    Start-Job -ScriptBlock {
-        Start-Sleep 4
-        Start-Process http://localhost:5173/
-    } | Out-Null
-    npm run start
+finally {
     Set-Location $location
 }

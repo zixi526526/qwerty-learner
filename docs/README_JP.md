@@ -119,42 +119,54 @@ CET-4、CET-6、GMAT、GRE、IELTS、SAT、TOEFL、大学院英語、専門英�
 ### コードの貢献
 
 [Call for Contributor](https://github.com/Realkai42/qwerty-learner/issues/390)
-[貢献ガイドライン](./docs/CONTRIBUTING.md)
+[貢献ガイドライン](./CONTRIBUTING.md)
 
 ### 辞書の貢献
 
-[辞書のインポート](./docs/toBuildDict.md)
+[辞書のインポート](./toBuildDict.md)
 
 ## プロジェクトの実行
 
-このプロジェクトは `React` をベースに開発されており、実行には node 環境が必要です。
+Node.js 20（npm を含む）と Git を事前にインストールし、リポジトリを clone してください。以下のコマンドはリポジトリのルートで実行します。
 
-### 手動インストール
+### 開発用（Vite）
 
-1. NodeJS をインストールします。参考：[公式ドキュメント](https://nodejs.org/en/download)
-2. `git clone` を使用してプロジェクトをローカルにダウンロードします。git を使用しない場合、依存関係が不足して実行できない可能性があります。
-3. コマンドラインを開き、プロジェクトのルートディレクトリで `yarn install` を実行して依存関係をダウンロードします。
-4. `yarn start` を実行してプロジェクトを起動します。プロジェクトのデフォルトアドレスは `http://localhost:5173/` です。
-5. ブラウザで `http://localhost:5173/` を開いてプロジェクトにアクセスします。
+```sh
+npm install
+npm run dev
+```
+
+ブラウザで `http://localhost:5173/` を開きます（実際のポートは Vite の出力を確認してください）。これはフロントエンドの開発サーバーです。家庭用 API が必要な場合は、次の家庭用サービスを使用してください。
+
+### 家庭用サービス（フロントエンドと API）
+
+```sh
+npm install
+npm run build
+npm run start
+```
+
+サービスの起動後、`http://localhost:4173/` を開きます。`start` は Node サーバーを起動し、事前に作成した `build/` を配信します。フロントエンドの変更後は再度 build し、サーバーを再起動してください。`PORT` 環境変数でポートを変更できます。詳細は[家庭用サービスの説明](./self-host-family.md)を参照してください。
 
 ### スクリプトの実行
 
-Windows ユーザーの場合、[install.ps1](scripts/install.ps1) スクリプトを直接実行して、依存関係を一括でインストールし、プロジェクトを起動できます。
+両方のスクリプトは依存関係をインストールし、デフォルトで build 後に家庭用サービス（ポート `4173`、`PORT` で変更可能）を起動します。Node.js や OS コンポーネントは自動インストールしません。表示された URL はサービスの起動後にブラウザで開いてください。
 
-1. PowerShell を開き、プロジェクトのルートディレクトリ内の `scripts` ディレクトリに移動します。
-2. コマンドラインで `.\install.ps1` を実行します。
-3. スクリプトの完了を待ちます。
+Windows（PowerShell、[install.ps1](../scripts/install.ps1)）:
 
-> 注記
-> スクリプトは `winget` を使用して node をインストールします。Windows 10 1709（バージョン 16299）以降でのみサポートされています！
+```powershell
+.\scripts\install.ps1
+# Vite 開発用（ポート 5173）
+.\scripts\install.ps1 dev
+```
 
-MacOS ユーザーの場合、[install.sh](scripts/install.sh) スクリプトを直接実行して、依存関係を一括でインストールし、プロジェクトを起動できます。
+macOS（[install.sh](../scripts/install.sh)）:
 
-1. ターミナルを開き、このプロジェクトのフォルダに移動します。
-2. コマンドラインで `scripts/install.sh` を実行します。
-3. スクリプトの完了を待ちます。
-
-> このスクリプトは `homebrew` に依存しています。`brew` コマンドが実行できることを確認してください。
+```sh
+bash scripts/install.sh
+# Vite 開発用（ポート 5173）
+bash scripts/install.sh dev
+```
 
 ## 🏆 栄誉
 
